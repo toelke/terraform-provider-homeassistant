@@ -1,3 +1,4 @@
+// Command terraform-provider-homeassistant serves the Home Assistant provider to OpenTofu.
 package main
 
 import (
