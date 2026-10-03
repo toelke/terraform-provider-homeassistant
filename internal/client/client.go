@@ -24,7 +24,7 @@ type Config struct {
 // receive it from the provider's Configure.
 type HAClient struct {
 	REST *RESTClient
-	WS   *WSClient
+	WS   WSCommander
 }
 
 // New builds an HAClient. It does not contact Home Assistant: REST is stateless, and the
@@ -38,7 +38,7 @@ func New(cfg Config) *HAClient {
 
 	return &HAClient{
 		REST: &RESTClient{cfg: cfg, http: httpClient},
-		WS:   &WSClient{cfg: cfg},
+		WS:   newWSClient(cfg, httpClient),
 	}
 }
 
@@ -46,9 +46,4 @@ func New(cfg Config) *HAClient {
 type RESTClient struct {
 	cfg  Config
 	http *http.Client
-}
-
-// WSClient sends commands over one lazily opened `/api/websocket` connection.
-type WSClient struct {
-	cfg Config
 }
