@@ -153,7 +153,7 @@ func (r *dashboardResource) Create(ctx context.Context, req resource.CreateReque
 	urlPath := plan.URLPath.ValueString()
 	dash, err := r.dashboards.Create(ctx, urlPath, plan.meta())
 	if err != nil {
-		resp.Diagnostics.AddError("Creating dashboard", err.Error())
+		resp.Diagnostics.AddError("Creating dashboard", client.ErrorDetail(err))
 		return
 	}
 	if err := r.dashboards.SaveConfig(ctx, urlPath, config); err != nil {
@@ -161,7 +161,7 @@ func (r *dashboardResource) Create(ctx context.Context, req resource.CreateReque
 		if delErr := r.dashboards.Delete(ctx, dash.ID); delErr != nil {
 			err = errors.Join(err, fmt.Errorf("deleting the half-created dashboard %q: %w", urlPath, delErr))
 		}
-		resp.Diagnostics.AddError("Saving dashboard config", err.Error())
+		resp.Diagnostics.AddError("Saving dashboard config", client.ErrorDetail(err))
 		return
 	}
 
@@ -180,7 +180,7 @@ func (r *dashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 	urlPath := state.URLPath.ValueString()
 	dash, ok, err := r.dashboards.Get(ctx, urlPath)
 	if err != nil {
-		resp.Diagnostics.AddError("Reading dashboard", err.Error())
+		resp.Diagnostics.AddError("Reading dashboard", client.ErrorDetail(err))
 		return
 	}
 	if !ok {
@@ -199,7 +199,7 @@ func (r *dashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 	case errors.Is(err, client.ErrNoDashboardConfig):
 		// Left null, so the next apply saves the configured config.
 	case err != nil:
-		resp.Diagnostics.AddError("Reading dashboard config", err.Error())
+		resp.Diagnostics.AddError("Reading dashboard config", client.ErrorDetail(err))
 		return
 	default:
 		config, err = dyntype.FromJSON(raw)
@@ -231,7 +231,7 @@ func (r *dashboardResource) Update(ctx context.Context, req resource.UpdateReque
 
 	if plan.metaChanged(state) {
 		if err := r.dashboards.Update(ctx, state.DashboardID.ValueString(), plan.meta()); err != nil {
-			resp.Diagnostics.AddError("Updating dashboard", err.Error())
+			resp.Diagnostics.AddError("Updating dashboard", client.ErrorDetail(err))
 			return
 		}
 	}
@@ -242,7 +242,7 @@ func (r *dashboardResource) Update(ctx context.Context, req resource.UpdateReque
 			return
 		}
 		if err := r.dashboards.SaveConfig(ctx, plan.URLPath.ValueString(), config); err != nil {
-			resp.Diagnostics.AddError("Saving dashboard config", err.Error())
+			resp.Diagnostics.AddError("Saving dashboard config", client.ErrorDetail(err))
 			return
 		}
 	}
@@ -263,7 +263,7 @@ func (r *dashboardResource) Delete(ctx context.Context, req resource.DeleteReque
 		return // already gone
 	}
 	if err != nil {
-		resp.Diagnostics.AddError("Deleting dashboard", err.Error())
+		resp.Diagnostics.AddError("Deleting dashboard", client.ErrorDetail(err))
 	}
 }
 
