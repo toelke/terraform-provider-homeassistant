@@ -4,7 +4,8 @@ An OpenTofu (and Terraform) provider for managing a [Home Assistant](https://www
 instance as code: floors, areas, labels, entity and device settings, automations, scripts,
 scenes, helpers, dashboards, and integrations.
 
-> **Status:** design phase. No code yet. See [`tickets/`](tickets/) for the implementation plan.
+> **Status:** early development. The provider configures, but has no resources yet. See
+> [`tickets/`](tickets/) for the implementation plan.
 
 ```hcl
 terraform {
@@ -20,6 +21,26 @@ provider "homeassistant" {
   token = var.ha_token # long-lived access token
 }
 ```
+
+## Development
+
+```sh
+go test -short ./...   # unit tests
+go generate ./...      # regenerate docs/
+```
+
+To try a local build with OpenTofu, install it into a plugin directory and point `tofu init` at
+it:
+
+```sh
+dir=/tmp/tofu-plugins/registry.opentofu.org/toelke/homeassistant/0.0.1/$(go env GOOS)_$(go env GOARCH)
+mkdir -p "$dir" && go build -o "$dir/terraform-provider-homeassistant_v0.0.1" .
+tofu init -plugin-dir=/tmp/tofu-plugins
+```
+
+Alternatively, use a `dev_overrides` block in your CLI configuration
+(`provider_installation { dev_overrides { "toelke/homeassistant" = "<dir of the binary>" } }`)
+and skip `tofu init`, as OpenTofu advises.
 
 ## Repository layout
 

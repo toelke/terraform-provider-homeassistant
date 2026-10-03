@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 depends_on: []
 adrs: [0002, 0016, 0018]
 spec: [overview.md]
@@ -16,7 +16,7 @@ spec: [overview.md]
   resources and data sources.
 
 ## Acceptance criteria
-- [ ] `tofu init` with a dev override loads the provider.
-- [ ] A missing `url` or `token` gives a clear diagnostic naming the argument and environment
+- [x] `tofu init` with a dev override loads the provider.
+- [x] A missing `url` or `token` gives a clear diagnostic naming the argument and environment
       variable.
-- [ ] Unit test: configuration precedence (argument over environment).
+- [x] Unit test: configuration precedence (argument over environment).
