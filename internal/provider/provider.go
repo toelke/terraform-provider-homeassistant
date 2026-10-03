@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/toelke/terraform-provider-homeassistant/internal/client"
+	"github.com/toelke/terraform-provider-homeassistant/internal/datasources"
 )
 
 var _ provider.Provider = (*HomeAssistantProvider)(nil)
@@ -94,5 +95,7 @@ func (p *HomeAssistantProvider) Resources(_ context.Context) []func() resource.R
 }
 
 func (p *HomeAssistantProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	return nil
+	return []func() datasource.DataSource{
+		datasources.NewConfig,
+	}
 }

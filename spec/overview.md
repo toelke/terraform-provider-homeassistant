@@ -36,7 +36,8 @@ monthly releases (ADR-0003).
 One `HAClient` holds:
 
 - **REST client** — `Authorization: Bearer <token>`. It returns typed errors: `ErrNotFound`
-  (404), `ErrUnauthorized` (401), and `ErrUnreachable` (connection failure).
+  (404), `ErrUnauthorized` (401), and `ErrUnreachable` (connection failure). Any other non-2xx
+  status is an `*HTTPError` carrying the status code and the start of the body.
 - **WebSocket client** — dialled lazily on the first command to `/api/websocket`. It performs
   the auth handshake (`auth_required` → `auth` → `auth_ok`), then multiplexes commands by an
   incrementing `id`. A dropped connection fails all pending commands with `ErrConnectionLost`

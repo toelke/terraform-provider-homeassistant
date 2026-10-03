@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 depends_on: [001, 003]
 adrs: [0004, 0011]
 spec: [overview.md, data-sources.md]
@@ -13,5 +13,5 @@ spec: [overview.md, data-sources.md]
 - `data.homeassistant_config`.
 
 ## Acceptance criteria
-- [ ] Unit tests for error mapping.
-- [ ] Acceptance: reads `version` and matches the container tag.
+- [x] Unit tests for error mapping.
+- [x] Acceptance: reads `version` and matches the container tag.
