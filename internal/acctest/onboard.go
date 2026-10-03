@@ -139,6 +139,7 @@ func (o onboarder) do(req *http.Request, out any) error {
 // sends `auth/long_lived_access_token`.
 func mintLongLivedToken(ctx context.Context, baseURL, accessToken string) (string, error) {
 	wsURL := "ws" + strings.TrimPrefix(baseURL, "http") + "/api/websocket"
+	//nolint:bodyclose // websocket.Dial owns resp.Body: "You never need to close resp.Body yourself."
 	conn, _, err := websocket.Dial(ctx, wsURL, nil)
 	if err != nil {
 		return "", err
@@ -157,7 +158,7 @@ func mintLongLivedToken(ctx context.Context, baseURL, accessToken string) (strin
 		Message string `json:"message"`
 	}
 	if err := wsjson.Read(ctx, conn, &msg); err != nil || msg.Type != "auth_required" {
-		return "", fmt.Errorf("expected auth_required, got %q: %v", msg.Type, err)
+		return "", fmt.Errorf("expected auth_required, got %q: %w", msg.Type, err)
 	}
 	if err := wsjson.Write(ctx, conn, map[string]string{"type": "auth", "access_token": accessToken}); err != nil {
 		return "", err
