@@ -26,8 +26,11 @@ provider "homeassistant" {
 
 ```sh
 go test -short ./...   # unit tests
-go generate ./...      # regenerate docs/
+go generate ./...      # regenerate docs/ from schema, examples/ and templates/
 ```
+
+Install the hooks once with `pre-commit install`. They run gofumpt, `go mod tidy`, golangci-lint,
+the unit tests and the docs check; CI runs the same hooks (`pre-commit run --all-files`).
 
 To try a local build with OpenTofu, install it into a plugin directory and point `tofu init` at
 it:

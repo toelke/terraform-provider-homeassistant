@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 depends_on: [001]
 adrs: [0017]
 spec: []
@@ -15,5 +15,5 @@ spec: []
 - Dependabot or Renovate for Go modules and actions.
 
 ## Acceptance criteria
-- [ ] `pre-commit run --all-files` passes on a clean checkout.
-- [ ] CI fails when `docs/` is stale or `go.mod` is untidy.
+- [x] `pre-commit run --all-files` passes on a clean checkout.
+- [x] CI fails when `docs/` is stale or `go.mod` is untidy.

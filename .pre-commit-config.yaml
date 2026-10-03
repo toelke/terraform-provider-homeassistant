@@ -1,0 +1,38 @@
+# Hooks from ADR-0017. Run `pre-commit install` once per clone; CI runs the same hooks.
+repos:
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v2.13.2
+    hooks:
+      - id: golangci-lint-config-verify
+      - id: golangci-lint-full
+
+  - repo: local
+    hooks:
+      - id: gofumpt
+        name: gofumpt
+        entry: go tool gofumpt -l -w
+        language: system
+        types: [go]
+
+      - id: go-mod-tidy
+        name: go mod tidy
+        # -diff prints the needed changes and fails instead of rewriting go.mod.
+        entry: go mod tidy -diff
+        language: system
+        files: '(\.go|go\.mod|go\.sum)$'
+        pass_filenames: false
+
+      - id: go-test
+        name: go test -short
+        entry: go test -short ./...
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      - id: tfplugindocs
+        name: tfplugindocs
+        # Regenerates docs/; pre-commit fails if that changed anything.
+        entry: go generate ./...
+        language: system
+        files: '(\.go|go\.mod|go\.sum)$|^(docs|examples|templates)/'
+        pass_filenames: false
