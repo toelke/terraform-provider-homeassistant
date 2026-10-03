@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 depends_on: [001]
 adrs: [0005, 0006]
 spec: [overview.md]
@@ -13,6 +13,6 @@ conversion, normalisation, and `SemanticEquals`, so the prior value is kept when
 value means the same thing.
 
 ## Acceptance criteria
-- [ ] Table-driven unit tests: key order, `5` vs `5.0`, nested lists and objects, and
+- [x] Table-driven unit tests: key order, `5` vs `5.0`, nested lists and objects, and
       null-versus-absent where HA is known to drop it.
-- [ ] A real change is not considered equal.
+- [x] A real change is not considered equal.
