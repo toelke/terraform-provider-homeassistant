@@ -125,7 +125,7 @@ func (r *labelResource) Create(ctx context.Context, req resource.CreateRequest, 
 	}
 	id, err := g.Create(ctx, plan.Name.ValueString(), plan.ID.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Creating label", err.Error())
+		resp.Diagnostics.AddError("Creating label", client.ErrorDetail(err))
 		return
 	}
 
@@ -142,7 +142,7 @@ func (r *labelResource) Read(ctx context.Context, req resource.ReadRequest, resp
 
 	l, ok, err := r.labels.Get(ctx, state.ID.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Reading label", err.Error())
+		resp.Diagnostics.AddError("Reading label", client.ErrorDetail(err))
 		return
 	}
 	if !ok {
@@ -169,7 +169,7 @@ func (r *labelResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	fields := plan.fields()
 	fields["name"] = plan.Name.ValueString()
 	if _, err := r.labels.Update(ctx, plan.ID.ValueString(), fields); err != nil {
-		resp.Diagnostics.AddError("Updating label", err.Error())
+		resp.Diagnostics.AddError("Updating label", client.ErrorDetail(err))
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
@@ -183,7 +183,7 @@ func (r *labelResource) Delete(ctx context.Context, req resource.DeleteRequest, 
 	}
 
 	if err := r.labels.Delete(ctx, state.ID.ValueString()); err != nil {
-		resp.Diagnostics.AddError("Deleting label", err.Error())
+		resp.Diagnostics.AddError("Deleting label", client.ErrorDetail(err))
 	}
 }
 
