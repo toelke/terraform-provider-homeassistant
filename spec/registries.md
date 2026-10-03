@@ -11,12 +11,20 @@ Floor, area, and label share this behaviour:
 
 - `id` is optional and computed. If it is unset, HA assigns `slugify(name)`.
 - **Create:**
-  1. If `id` is set, validate it as a slug and create with `name = id`, then `update` to
-     `name`.
+  1. If `id` is set, validate it as a slug (`slugify(id) == id`) and create with `name = id`.
   2. Otherwise create with `name`.
   3. Check that the returned ID equals the expected one (`id`, or the provider's own
      `slugify(name)`, which must match HA's slugify). On a mismatch, delete the object again and
      fail. The message names the clashing ID and the ways out.
+  4. If `id` is set, `update` the object to `name`. If that fails, delete the object again and
+     fail.
+
+  HA itself rejects a create or rename to a name that another object already uses (compared
+  case- and whitespace-insensitively). The provider surfaces that error with the same ways out.
+- **Slugify:** `client.Slugify` ports HA's `util.slugify` (python-slugify with `_` as
+  separator). It transliterates with go-unidecode, corrected by a table of the code points where
+  HA's text-unidecode differs. `scripts/gen-slug-tables.sh` regenerates that table from an HA
+  image.
 - **Update:** in place, including `name`. Changing `id` forces replacement.
 - **Read:** list and find by ID. If missing → remove from state.
 - **Import:** by ID.
@@ -57,7 +65,7 @@ Commands: `config/label_registry/list|create|update|delete` (key `label_id`).
 |---|---|---|
 | `name` | string | required |
 | `id` | string | optional, computed |
-| `color` | string | optional |
+| `color` | string | optional; `#RRGGBB` or a theme color such as `indigo` |
 | `icon` | string | optional |
 | `description` | string | optional |
 

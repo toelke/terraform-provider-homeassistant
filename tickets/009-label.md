@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 depends_on: [004]
 adrs: [0009]
 spec: [registries.md]
@@ -14,8 +14,8 @@ The first generated-ID resource. Build the reusable pieces here:
 - The collision check, which deletes the object and returns an actionable error.
 
 ## Acceptance criteria
-- [ ] CRUD and import acceptance tests.
-- [ ] Acceptance: a collision (a label with the same name already exists) errors and leaves no
+- [x] CRUD and import acceptance tests.
+- [x] Acceptance: a collision (a label with the same name already exists) errors and leaves no
       `_2` behind.
-- [ ] Acceptance: with `id` set, the ID is kept and the name equals `name`.
-- [ ] Renaming is an in-place update.
+- [x] Acceptance: with `id` set, the ID is kept and the name equals `name`.
+- [x] Renaming is an in-place update.

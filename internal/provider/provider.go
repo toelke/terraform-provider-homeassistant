@@ -14,6 +14,7 @@ import (
 
 	"github.com/toelke/terraform-provider-homeassistant/internal/client"
 	"github.com/toelke/terraform-provider-homeassistant/internal/datasources"
+	"github.com/toelke/terraform-provider-homeassistant/internal/resources"
 )
 
 var _ provider.Provider = (*HomeAssistantProvider)(nil)
@@ -91,7 +92,9 @@ func (p *HomeAssistantProvider) Configure(ctx context.Context, req provider.Conf
 }
 
 func (p *HomeAssistantProvider) Resources(_ context.Context) []func() resource.Resource {
-	return nil
+	return []func() resource.Resource{
+		resources.NewLabel,
+	}
 }
 
 func (p *HomeAssistantProvider) DataSources(_ context.Context) []func() datasource.DataSource {
