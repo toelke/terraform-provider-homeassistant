@@ -146,6 +146,7 @@ func (c *WSClient) endpoint() string {
 // `auth_required` → `auth` → `auth_ok` | `auth_invalid`.
 func (c *WSClient) dial(ctx context.Context) (*wsConn, error) {
 	endpoint := c.endpoint()
+	//nolint:bodyclose // websocket.Dial owns resp.Body: "You never need to close resp.Body yourself."
 	ws, _, err := websocket.Dial(ctx, endpoint, &websocket.DialOptions{HTTPClient: c.http})
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
