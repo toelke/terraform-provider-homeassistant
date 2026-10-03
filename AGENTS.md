@@ -9,6 +9,20 @@ OpenTofu provider for Home Assistant (Go, terraform-plugin-framework).
 - `spec/`: what the provider does. Start with `spec/overview.md`.
 - `tickets/`: the work, as vertical slices. `tickets/README.md` holds the definition of done.
 
+## Tending open PRs
+
+Do this before taking a new ticket. For each open PR (`gh pr list`), oldest first:
+
+1. **Claim:** `git worktree add ../tofu-ha-NNN ticket/NNN-<slug>`. If the branch is already
+   checked out in another worktree, another session owns it; skip the PR.
+2. **Rebase** onto `origin/main` and resolve every conflict. Re-run the definition of done,
+   then `git push --force-with-lease`.
+3. **Comments:** address every unresolved review comment and thread. Fix it, or reply with
+   the reason you didn't. A comment that asks for a decision follows the ADR rule above. If it
+   needs the human, reply on the PR with options and a recommendation, and leave it open.
+4. **CI:** `gh pr checks --watch` until every check is green. Fix failures and push again.
+5. **Clean up:** `git worktree remove ../tofu-ha-NNN`.
+
 ## Taking the next ticket
 
 1. **Pick:** choose the lowest-numbered ticket with `status: todo` whose `depends_on` tickets are
