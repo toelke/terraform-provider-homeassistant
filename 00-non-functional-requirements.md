@@ -1,0 +1,7 @@
+- unit tests
+- pre-commit-hooks
+    - format
+    - check / run go tidy
+    - run fast unit tests
+- end2end-tests for CI
+    - spawn home-assistant in docker with a given config
