@@ -13,7 +13,7 @@ Read-only lookups of live HA data. They use REST only, so they never open a WebS
 | `latitude`, `longitude`, `elevation` | number |
 | `time_zone` | string |
 | `unit_system` | object `{ temperature, length, mass, volume }` |
-| `components` | list(string) |
+| `components` | list(string), sorted (HA builds it from a set, so its order is not stable) |
 
 ## `homeassistant_entity`
 
