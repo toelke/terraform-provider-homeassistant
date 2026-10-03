@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 depends_on: [001]
 adrs: [0003, 0017]
 spec: []
@@ -22,6 +22,8 @@ spec: []
   bump them.
 
 ## Acceptance criteria
-- [ ] A trivial acceptance test (provider configures and reads `homeassistant_config`) passes
-      locally with Docker and in CI.
-- [ ] Without `TF_ACC`, acceptance tests are skipped.
+- [x] A trivial acceptance test passes locally with Docker and in CI. `homeassistant_config`
+      only arrives in 005, which depends on this ticket, so the trivial test configures the
+      provider from the harness's environment and checks the minted token against
+      `GET /api/config`. 005 adds the read through the provider.
+- [x] Without `TF_ACC`, acceptance tests are skipped.

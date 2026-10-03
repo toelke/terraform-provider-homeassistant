@@ -32,6 +32,36 @@ go generate ./...      # regenerate docs/ from schema, examples/ and templates/
 Install the hooks once with `pre-commit install`. They run gofumpt, `go mod tidy`, golangci-lint,
 the unit tests and the docs check; CI runs the same hooks (`pre-commit run --all-files`).
 
+### Acceptance tests
+
+Acceptance tests run the provider with OpenTofu against a real Home Assistant in Docker. The
+harness in [`internal/acctest`](internal/acctest/) starts one container per test package with
+testcontainers-go, onboards it headlessly, and mints a long-lived token. They need Docker and
+are skipped without `TF_ACC`:
+
+```sh
+TF_ACC=1 TF_ACC_TERRAFORM_PATH="$(which tofu)" \
+  TF_ACC_PROVIDER_NAMESPACE=toelke TF_ACC_PROVIDER_HOST=registry.opentofu.org \
+  HOMEASSISTANT_IMAGE_TAG=2026.9.4 \
+  go test -run '^TestAcc' ./...
+```
+
+`HOMEASSISTANT_IMAGE_TAG` is optional and defaults to the newest version in the CI matrix.
+
+#### Bumping the Home Assistant versions
+
+CI tests the oldest and the newest of the six most recent monthly HA releases
+([ADR-0003](adr/0003-home-assistant-support-window.md)). When a new monthly release is out:
+
+1. In [`.github/workflows/acceptance.yml`](.github/workflows/acceptance.yml), set the `ha` matrix
+   to the latest patch release of the newest month and of the month five releases before it,
+   e.g. `2026.4.4` and `2026.9.4`. Tags are listed at
+   <https://github.com/home-assistant/core/releases>.
+2. Set `DefaultImageTag` in [`internal/acctest/acctest.go`](internal/acctest/acctest.go) to the
+   newest tag.
+
+### Local builds
+
 To try a local build with OpenTofu, install it into a plugin directory and point `tofu init` at
 it:
 

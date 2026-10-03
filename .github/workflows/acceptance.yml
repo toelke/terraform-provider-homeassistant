@@ -1,0 +1,38 @@
+name: Acceptance tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance:
+    name: Acceptance (HA ${{ matrix.ha }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # Oldest and newest release of the support window (ADR-0003). See "Bumping the Home
+        # Assistant versions" in README.md.
+        ha: ["2026.4.4", "2026.9.4"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_wrapper: false
+      - name: Pull Home Assistant image
+        run: docker pull ghcr.io/home-assistant/home-assistant:${{ matrix.ha }}
+      - name: Run acceptance tests
+        env:
+          TF_ACC: "1"
+          TF_ACC_PROVIDER_NAMESPACE: toelke
+          TF_ACC_PROVIDER_HOST: registry.opentofu.org
+          HOMEASSISTANT_IMAGE_TAG: ${{ matrix.ha }}
+        run: TF_ACC_TERRAFORM_PATH="$(which tofu)" go test -run '^TestAcc' -timeout 20m -v ./...
