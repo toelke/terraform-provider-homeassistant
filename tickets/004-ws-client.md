@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 depends_on: [001]
 adrs: [0004, 0011]
 spec: [overview.md]
@@ -17,6 +17,6 @@ spec: [overview.md]
 - Expose it through an interface, so resources can be tested against fakes.
 
 ## Acceptance criteria
-- [ ] Unit tests against an in-process fake WS server cover: auth ok, auth invalid, concurrent
+- [x] Unit tests against an in-process fake WS server cover: auth ok, auth invalid, concurrent
       commands answered out of order, drop followed by redial, and context cancel.
-- [ ] Plans that use only REST data sources open no socket (unit test on the client).
+- [x] Plans that use only REST data sources open no socket (unit test on the client).

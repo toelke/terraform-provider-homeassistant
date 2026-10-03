@@ -39,8 +39,10 @@ One `HAClient` holds:
   (404), `ErrUnauthorized` (401), and `ErrUnreachable` (connection failure).
 - **WebSocket client** — dialled lazily on the first command to `/api/websocket`. It performs
   the auth handshake (`auth_required` → `auth` → `auth_ok`), then multiplexes commands by an
-  incrementing `id`. A dropped connection fails all pending commands with a retryable error, and
-  the next command dials again.
+  incrementing `id`. A dropped connection fails all pending commands with `ErrConnectionLost`
+  (retryable), and the next command dials again. `auth_invalid` returns `ErrUnauthorized`, a failed
+  dial `ErrUnreachable`, and a `success: false` result a `*WSError` carrying `code` and `message`.
+  The provider `timeout` bounds each command, including a dial.
 
 Which operation uses which transport:
 
