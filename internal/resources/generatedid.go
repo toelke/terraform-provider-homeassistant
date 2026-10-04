@@ -4,6 +4,7 @@ package resources
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 
@@ -38,9 +39,9 @@ func (g generatedID) Create(ctx context.Context, name, id string) (string, error
 
 	got, err := g.create(ctx, createName)
 	if err != nil {
-		return "", fmt.Errorf("creating %s %q: %w. If a %s with this name already exists, import it "+
+		return "", fmt.Errorf("creating %s %q: %w. If %s with this name already exists, import it "+
 			"into this resource, rename or remove it in Home Assistant, or choose another name",
-			g.kind, createName, err, g.kind)
+			g.kind, createName, err, withArticle(g.kind))
 	}
 
 	if got != want {
@@ -48,10 +49,10 @@ func (g generatedID) Create(ctx context.Context, name, id string) (string, error
 			return "", fmt.Errorf("home assistant assigned the ID %q instead of %q, and deleting %s %q "+
 				"again failed: %w. Delete it in Home Assistant", got, want, g.kind, got, delErr)
 		}
-		return "", fmt.Errorf("a %s with the ID %q already exists, so Home Assistant assigned %q. "+
+		return "", fmt.Errorf("%s with the ID %q already exists, so Home Assistant assigned %q. "+
 			"The new %s was deleted again. Either import the existing %s (`tofu import %s.<name> %s`), "+
 			"rename or remove it in Home Assistant, or choose another name or `id`",
-			g.kind, want, got, g.kind, g.kind, g.typeName, want)
+			withArticle(g.kind), want, got, g.kind, g.kind, g.typeName, want)
 	}
 
 	if id != "" && name != id {
@@ -60,12 +61,20 @@ func (g generatedID) Create(ctx context.Context, name, id string) (string, error
 				return "", fmt.Errorf("renaming %s %q to %q: %w; deleting it again also failed: %v. "+
 					"Delete it in Home Assistant", g.kind, got, name, err, delErr)
 			}
-			return "", fmt.Errorf("renaming %s %q to %q: %w. The new %s was deleted again. If a %s "+
+			return "", fmt.Errorf("renaming %s %q to %q: %w. The new %s was deleted again. If %s "+
 				"with this name already exists, import it into this resource, rename or remove it in Home "+
-				"Assistant, or choose another name", g.kind, got, name, err, g.kind, g.kind)
+				"Assistant, or choose another name", g.kind, got, name, err, g.kind, withArticle(g.kind))
 		}
 	}
 	return got, nil
+}
+
+// withArticle prefixes kind with "a" or "an", e.g. "an area".
+func withArticle(kind string) string {
+	if strings.ContainsAny(kind[:1], "aeiou") {
+		return "an " + kind
+	}
+	return "a " + kind
 }
 
 // slugValidator accepts strings that HA's slugify leaves unchanged, i.e. valid generated IDs.
