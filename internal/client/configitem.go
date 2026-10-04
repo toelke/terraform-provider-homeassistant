@@ -29,6 +29,11 @@ func NewAutomations(rest *RESTClient) ConfigItems {
 	return ConfigItems{rest: rest, domain: "automation", idInBody: true}
 }
 
+// NewScripts returns the config editor of scripts.
+func NewScripts(rest *RESTClient) ConfigItems {
+	return ConfigItems{rest: rest, domain: "script"}
+}
+
 func (c ConfigItems) path(id string) string {
 	return "config/" + c.domain + "/config/" + id
 }
@@ -69,8 +74,9 @@ func (c ConfigItems) Delete(ctx context.Context, id string) error {
 // ErrEntityNotFound means no entity appeared for a config item before the wait ran out.
 var ErrEntityNotFound = errors.New("entity not found")
 
-// FindEntity returns the entity ID of the item: the entity of the domain whose `attributes.id`
-// is id. Because HA reloads asynchronously after Save, it polls `GET /api/states` until the
+// FindEntity returns the entity ID of the item. For a domain that stores the ID inside the item,
+// that is the entity of the domain whose `attributes.id` is id; for one that stores it as the key
+// (script), it is `<domain>.<id>`. Because HA reloads asynchronously after Save, it polls `GET /api/states` until the
 // entity appears or wait has passed, and then returns ErrEntityNotFound. A wait of zero looks
 // once.
 func (c ConfigItems) FindEntity(ctx context.Context, id string, wait time.Duration) (string, error) {
@@ -86,11 +92,14 @@ func (c ConfigItems) FindEntity(ctx context.Context, id string, wait time.Durati
 			return "", err
 		}
 		for _, s := range states {
-			if domain, _, _ := strings.Cut(s.EntityID, "."); domain == c.domain && s.Attributes.ID == id {
+			if c.matches(s.EntityID, s.Attributes.ID, id) {
 				return s.EntityID, nil
 			}
 		}
 		if !time.Now().Before(deadline) {
+			if !c.idInBody {
+				return "", fmt.Errorf("%w: no entity %s.%s after %s", ErrEntityNotFound, c.domain, id, wait)
+			}
 			return "", fmt.Errorf("%w: no %s entity has attributes.id %q after %s", ErrEntityNotFound, c.domain, id, wait)
 		}
 		select {
@@ -99,4 +108,14 @@ func (c ConfigItems) FindEntity(ctx context.Context, id string, wait time.Durati
 		case <-time.After(entityPollInterval):
 		}
 	}
+}
+
+// matches reports whether the state with entityID and attribute `id` attrID is the entity of
+// the item id.
+func (c ConfigItems) matches(entityID string, attrID any, id string) bool {
+	if !c.idInBody {
+		return entityID == c.domain+"."+id
+	}
+	domain, _, _ := strings.Cut(entityID, ".")
+	return domain == c.domain && attrID == id
 }

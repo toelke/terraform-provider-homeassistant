@@ -11,6 +11,8 @@ breaking changes may land in minor versions and are marked **Breaking** (ADR-001
 - Resource `homeassistant_automation`, with import. `config` takes the automation as an object,
   e.g. from `yamldecode(file(...))`.
 - Resource `homeassistant_input_boolean`, with import.
+- Resource `homeassistant_script`, with import. `config` takes the script as an object, e.g. from
+  `yamldecode(file(...))`; `entity_id` is `script.<id>`.
 
 ## 0.0.1
 
