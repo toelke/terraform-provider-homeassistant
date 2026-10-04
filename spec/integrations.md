@@ -54,13 +54,12 @@ resource "homeassistant_integration" "cloud" {
 | `steps` | object: `step_id` → object of fields (dynamic) | required, at least one step; forces replacement |
 | `sensitive_steps` | same shape as `steps`, sensitive | optional; forces replacement |
 
-ADR-0014 describes ordered `step` blocks with `step_id`, `data`, and `sensitive_data`.
-terraform-plugin-framework rejects dynamic attributes inside blocks and collections ("Dynamic
-types inside of collections are not currently supported"), so the steps are two dynamic objects
-keyed by `step_id` instead. The driver matches steps by `step_id` anyway, so order carries no
-meaning, and a `step_id` cannot appear twice. A step's driver input is `steps[id]` as `data` and
-`sensitive_steps[id]` as `sensitive_data`; a step may appear in only one of the two. A form
-without fields is answered by `{}`. This deviation awaits the human's decision on the PR.
+The steps are two dynamic objects keyed by `step_id` (ADR-0021, which supersedes ADR-0014's
+`step` blocks). The driver matches steps by `step_id`, so order carries no meaning, and a
+`step_id` cannot appear twice. A step's driver input is `steps[id]` as `data` and
+`sensitive_steps[id]` as `sensitive_data`. A step may appear in either object or in both; the two
+are merged per step, and on a field present in both, `sensitive_steps` wins. A form without
+fields is answered by `{}`.
 
 | Computed | |
 |---|---|
