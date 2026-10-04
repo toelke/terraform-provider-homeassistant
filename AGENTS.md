@@ -36,6 +36,10 @@ Do this before taking a new ticket. For each open PR (`gh pr list`), oldest firs
    needs the human, reply on the PR with options and a recommendation, and leave it open.
 4. **CI:** `gh pr checks --watch` until every check is green. Fix failures and push again.
 5. **Release** the worktree.
+6. **Merge** when `scripts/lgtm-check.sh <pr>` passes: `gh pr merge <pr> --merge --delete-branch`.
+   The check passes once toelke has commented a bare "LGTM", nothing but rebases has changed
+   since, and all checks are green. Agents post as toelke too, so your own comments always carry
+   the Claude Code footer and are never just "LGTM".
 
 ## Taking the next ticket
 
@@ -57,5 +61,5 @@ Locally, build and test for the host platform only, e.g.
 `goreleaser build --snapshot --clean --single-target`. Cross-compiling is CI's job; a local
 build of every target overloads the machine.
 
-Agents may create branches, commit, push, and open PRs in this repo without asking. Merging is
-left to the human.
+Agents may create branches, commit, push, and open PRs in this repo without asking. They merge
+only through step 6 of "Tending open PRs".
