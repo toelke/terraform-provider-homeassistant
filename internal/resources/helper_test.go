@@ -2,6 +2,7 @@ package resources
 
 import (
 	"context"
+	"encoding/json"
 	"maps"
 	"testing"
 
@@ -58,5 +59,73 @@ func TestHelperObject(t *testing.T) {
 	})
 	if !got.Equal(want) {
 		t.Errorf("object = %v, want %v", got, want)
+	}
+}
+
+// helperType returns the object type of the helper resource r.
+func helperType(t *testing.T, r resource.Resource) types.ObjectType {
+	t.Helper()
+	resp := &resource.SchemaResponse{}
+	r.Schema(context.Background(), resource.SchemaRequest{}, resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatal(resp.Diagnostics)
+	}
+	return resp.Schema.Type().(types.ObjectType)
+}
+
+// TestHelperRoundTrip converts typed attributes (numbers and lists) to HA fields and, after
+// decoding them as JSON like HA's reply, back.
+func TestHelperRoundTrip(t *testing.T) {
+	for _, tc := range []struct {
+		r     resource.Resource
+		attrs map[string]attr.Value
+	}{
+		{NewInputNumber(), map[string]attr.Value{
+			"min": types.Float64Value(-2.5), "max": types.Float64Value(30), "step": types.Float64Value(0.1),
+			"initial": types.Float64Null(), "mode": types.StringValue("box"), "unit_of_measurement": types.StringValue("°C"),
+		}},
+		{NewInputText(), map[string]attr.Value{
+			"min": types.Int64Value(0), "max": types.Int64Value(255), "initial": types.StringValue("hi"),
+			"pattern": types.StringNull(), "mode": types.StringValue("password"),
+		}},
+		{NewInputSelect(), map[string]attr.Value{"options": strs("off", "eco", "comfort"), "initial": types.StringValue("eco")}},
+		{NewInputDatetime(), map[string]attr.Value{
+			"has_date": types.BoolValue(true), "has_time": types.BoolValue(false), "initial": types.StringNull(),
+		}},
+		{NewInputButton(), map[string]attr.Value{}},
+	} {
+		r := tc.r.(*helperResource)
+		t.Run(r.spec.domain, func(t *testing.T) {
+			typ := helperType(t, r)
+			vals := map[string]attr.Value{
+				"id":        types.StringValue("thing"),
+				"entity_id": types.StringValue(r.spec.domain + ".thing"),
+				"name":      types.StringValue("Thing"),
+				"icon":      types.StringNull(),
+			}
+			maps.Copy(vals, tc.attrs)
+			obj := types.ObjectValueMust(typ.AttrTypes, vals)
+
+			fields, err := helperFields(obj)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fields["id"] = "thing"
+			b, err := json.Marshal(fields)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var h client.Helper
+			if err := json.Unmarshal(b, &h); err != nil {
+				t.Fatal(err)
+			}
+			got, diags := r.helperObject(typ, h)
+			if diags.HasError() {
+				t.Fatal(diags)
+			}
+			if !got.Equal(obj) {
+				t.Errorf("round trip = %v, want %v", got, obj)
+			}
+		})
 	}
 }

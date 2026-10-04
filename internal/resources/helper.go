@@ -3,6 +3,9 @@ package resources
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -27,11 +30,15 @@ type helperSpec struct {
 	// fields are the helper's attributes besides `id`, `name`, `icon`, and `entity_id`. Each is
 	// stored in HA under the attribute's name.
 	fields map[string]schema.Attribute
+	// validate, if set, checks the config at plan time. It gets the config's attributes; values
+	// that are not known yet are unknown, and it skips them.
+	validate func(attrs map[string]attr.Value) diag.Diagnostics
 }
 
 var (
-	_ resource.ResourceWithConfigure   = (*helperResource)(nil)
-	_ resource.ResourceWithImportState = (*helperResource)(nil)
+	_ resource.ResourceWithConfigure      = (*helperResource)(nil)
+	_ resource.ResourceWithImportState    = (*helperResource)(nil)
+	_ resource.ResourceWithValidateConfig = (*helperResource)(nil)
 )
 
 // newHelper returns the resource for a helper domain.
@@ -94,6 +101,18 @@ func (r *helperResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 	resp.Schema = schema.Schema{Description: r.spec.description, Attributes: attrs}
 }
 
+func (r *helperResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	if r.spec.validate == nil {
+		return
+	}
+	var cfg types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &cfg)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resp.Diagnostics.Append(r.spec.validate(cfg.Attributes())...)
+}
+
 func (r *helperResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
@@ -120,6 +139,20 @@ func helperFields(m types.Object) (map[string]any, error) {
 			fields[name] = v.ValueString()
 		case types.Bool:
 			fields[name] = v.ValueBool()
+		case types.Float64:
+			fields[name] = v.ValueFloat64()
+		case types.Int64:
+			fields[name] = v.ValueInt64()
+		case types.List:
+			items := make([]any, 0, len(v.Elements()))
+			for _, e := range v.Elements() {
+				s, ok := e.(types.String)
+				if !ok || s.IsNull() || s.IsUnknown() {
+					return nil, fmt.Errorf("attribute %q has an element %v that is not a known string. This is a bug in the provider", name, e)
+				}
+				items = append(items, s.ValueString())
+			}
+			fields[name] = items
 		default:
 			return nil, fmt.Errorf("attribute %q has the unsupported type %T. This is a bug in the provider", name, v)
 		}
@@ -154,6 +187,33 @@ func (r *helperResource) helperObject(t types.ObjectType, h client.Helper) (type
 				continue
 			}
 			vals[name] = types.BoolValue(b)
+		case typ.Equal(types.Float64Type):
+			f, ok := raw.(float64)
+			if !set || !ok {
+				vals[name] = types.Float64Null()
+				continue
+			}
+			vals[name] = types.Float64Value(f)
+		case typ.Equal(types.Int64Type):
+			// JSON numbers decode to float64.
+			f, ok := raw.(float64)
+			if !set || !ok {
+				vals[name] = types.Int64Null()
+				continue
+			}
+			vals[name] = types.Int64Value(int64(f))
+		case typ.Equal(types.ListType{ElemType: types.StringType}):
+			items, ok := raw.([]any)
+			if !set || !ok {
+				vals[name] = types.ListNull(types.StringType)
+				continue
+			}
+			elems := make([]attr.Value, 0, len(items))
+			for _, item := range items {
+				s, _ := item.(string)
+				elems = append(elems, types.StringValue(s))
+			}
+			vals[name] = types.ListValueMust(types.StringType, elems)
 		default:
 			var diags diag.Diagnostics
 			diags.AddError("Reading helper", fmt.Sprintf(
@@ -282,4 +342,40 @@ func (r *helperResource) Delete(ctx context.Context, req resource.DeleteRequest,
 
 func (r *helperResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+}
+
+// oneOfValidator accepts one of a fixed set of strings.
+type oneOfValidator []string
+
+var _ validator.String = oneOfValidator(nil)
+
+func (v oneOfValidator) Description(context.Context) string {
+	quoted := make([]string, len(v))
+	for i, s := range v {
+		quoted[i] = strconv.Quote(s)
+	}
+	return "must be one of " + strings.Join(quoted, ", ")
+}
+
+func (v oneOfValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v oneOfValidator) ValidateString(ctx context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() || slices.Contains(v, req.ConfigValue.ValueString()) {
+		return
+	}
+	resp.Diagnostics.AddAttributeError(req.Path, "Invalid Attribute Value",
+		fmt.Sprintf("Attribute %s %s, got: %q", req.Path, v.Description(ctx), req.ConfigValue.ValueString()))
+}
+
+// configValue returns the config attribute `name` as T. set is false if it is null; known is
+// false if it is unknown. Plan-time checks skip unknown values.
+func configValue[T attr.Value](attrs map[string]attr.Value, name string) (v T, set, known bool) {
+	a, ok := attrs[name]
+	if !ok {
+		return v, false, true
+	}
+	v, _ = a.(T)
+	return v, !a.IsNull(), !a.IsUnknown()
 }

@@ -20,6 +20,9 @@ breaking changes may land in minor versions and are marked **Breaking** (ADR-001
   `yamldecode(file(...))`; `entity_id` is `script.<id>`.
 - Resource `homeassistant_scene`, with import. `config` takes the scene as an object, e.g. from
   `yamldecode(file(...))`.
+- Resources `homeassistant_input_number`, `homeassistant_input_text`, `homeassistant_input_select`,
+  `homeassistant_input_datetime` and `homeassistant_input_button`, with import and plan-time
+  validation.
 
 ## 0.0.1
 
