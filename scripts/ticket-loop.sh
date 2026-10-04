@@ -31,6 +31,8 @@ while true; do
     "Follow AGENTS.md: first tend every open PR (rebase onto origin/main, resolve conflicts,
 address all review comments, get CI green), then take the next ticket in todo and implement it.
 You cannot ask the human in this session: put questions as PR comments instead.
+Run every command in the foreground and wait for it: this session ends as soon as you reply
+without a tool call, and background tasks die with it.
 If no new ticket is ready after tending the PRs, end your reply with exactly NO_TICKET_READY." \
     | tee "$log" | jq -rj --unbuffered "$pretty" || true
   if jq -r 'select(.type == "result") | .result // ""' "$log" | grep -q NO_TICKET_READY; then
