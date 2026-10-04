@@ -1,6 +1,6 @@
 # 14. Integrations: generic resource first, typed later, secrets split
 
-Date: 2026-10-03 · Status: Accepted
+Date: 2026-10-03 · Status: Accepted · Step blocks superseded by ADR-0021
 
 ## Context
 
