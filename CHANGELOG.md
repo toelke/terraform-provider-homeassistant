@@ -15,6 +15,7 @@ breaking changes may land in minor versions and are marked **Breaking** (ADR-001
 - Resource `homeassistant_input_boolean`, with import.
 - Provider functions `tile_card`, `entities_card`, `heading_card` and `grid_section`, which build
   dashboard cards and sections for `homeassistant_dashboard`.
+- Resource `homeassistant_area`, with import.
 
 ## 0.0.1
 

@@ -96,6 +96,7 @@ func (p *HomeAssistantProvider) Configure(ctx context.Context, req provider.Conf
 func (p *HomeAssistantProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		resources.NewAutomation,
+		resources.NewArea,
 		resources.NewDashboard,
 		resources.NewFloor,
 		resources.NewInputBoolean,

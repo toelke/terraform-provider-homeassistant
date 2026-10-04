@@ -50,13 +50,13 @@ Commands: `config/area_registry/list|create|update|delete` (key `area_id`).
 |---|---|---|
 | `name` | string | required |
 | `id` | string | optional, computed |
-| `floor_id` | string | optional |
+| `floor_id` | string | optional; changing it moves the area in place |
 | `icon` | string | optional |
-| `aliases` | set(string) | optional |
-| `labels` | set(string) | optional |
+| `aliases` | set(string) | optional; defaults to `[]`, which is what HA reports for none |
+| `labels` | set(string) | optional; label IDs; defaults to `[]`, as for `aliases` |
 | `picture` | string | optional |
-| `temperature_entity_id` | string | optional |
-| `humidity_entity_id` | string | optional |
+| `temperature_entity_id` | string | optional; HA requires an existing `sensor` with device class `temperature` |
+| `humidity_entity_id` | string | optional; HA requires an existing `sensor` with device class `humidity` |
 
 ### `homeassistant_label`
 
