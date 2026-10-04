@@ -23,3 +23,12 @@ func (c *RESTClient) State(ctx context.Context, entityID string) (*EntityState, 
 	}
 	return &s, nil
 }
+
+// States reads the state of every entity (`GET /api/states`).
+func (c *RESTClient) States(ctx context.Context) ([]EntityState, error) {
+	var states []EntityState
+	if err := c.Get(ctx, "states", &states); err != nil {
+		return nil, err
+	}
+	return states, nil
+}

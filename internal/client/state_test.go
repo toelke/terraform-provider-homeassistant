@@ -36,3 +36,21 @@ func TestStateMissingIsNotFound(t *testing.T) {
 		t.Fatalf("err = %v, want ErrNotFound", err)
 	}
 }
+
+func TestStatesDecodesEveryEntity(t *testing.T) {
+	c := serve(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/states" {
+			t.Errorf("path = %q", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`[{"entity_id":"sun.sun","state":"above_horizon","attributes":{"rising":true}},` +
+			`{"entity_id":"light.hall","state":"off","attributes":{}}]`))
+	})
+	states, err := c.States(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(states) != 2 || states[0].EntityID != "sun.sun" || states[1].State != "off" ||
+		string(states[0].Attributes) != `{"rising":true}` {
+		t.Errorf("decoded %+v", states)
+	}
+}
