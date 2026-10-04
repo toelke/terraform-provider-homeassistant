@@ -96,5 +96,12 @@ func statusError(resp *http.Response) error {
 		return ErrNotFound
 	}
 	b, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBody))
+	// HA's views answer errors with `{"message": "..."}`; the message alone reads better.
+	var msg struct {
+		Message string `json:"message"`
+	}
+	if json.Unmarshal(b, &msg) == nil && msg.Message != "" {
+		return &HTTPError{StatusCode: resp.StatusCode, Body: msg.Message}
+	}
 	return &HTTPError{StatusCode: resp.StatusCode, Body: strings.TrimSpace(string(b))}
 }
