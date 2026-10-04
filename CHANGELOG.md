@@ -16,6 +16,8 @@ breaking changes may land in minor versions and are marked **Breaking** (ADR-001
 - Provider functions `tile_card`, `entities_card`, `heading_card` and `grid_section`, which build
   dashboard cards and sections for `homeassistant_dashboard`.
 - Resource `homeassistant_area`, with import.
+- Resource `homeassistant_script`, with import. `config` takes the script as an object, e.g. from
+  `yamldecode(file(...))`; `entity_id` is `script.<id>`.
 
 ## 0.0.1
 

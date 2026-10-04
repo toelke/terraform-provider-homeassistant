@@ -68,7 +68,8 @@ Enabled or disabled is runtime state (ADR-0012). To disable an automation as cod
 ## `homeassistant_script`
 
 `config` is the script body (`alias`, `mode`, `sequence`, `fields`, …). HA stores it under the
-key `id`, so its entity is `script.<id>`.
+key `id`, so its entity is `script.<id>`. Create waits for that entity ID to appear in
+`GET /api/states`.
 
 ## `homeassistant_scene`
 
