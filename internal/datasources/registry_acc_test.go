@@ -79,10 +79,43 @@ func setUpRegistry(t *testing.T) registryFixture {
 
 func TestAccAreaAndDeviceDataSources(t *testing.T) {
 	f := setUpRegistry(t)
+	// The valid step comes last: the post-test destroy runs with the last step's config, which
+	// fails if that config does not validate or read.
 	resource.Test(t, resource.TestCase{
 		PreCheck:                 func() { acctest.PreCheck(t) },
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
+			{
+				Config: acctest.ProviderConfig + `
+data "homeassistant_area" "missing" {
+  name = "Acc Reg No Such Area"
+}
+`,
+				ExpectError: regexp.MustCompile(`no area has name "Acc Reg No Such Area"`),
+			},
+			{
+				Config: acctest.ProviderConfig + `
+data "homeassistant_device" "missing" {
+  device_id = "no-such-device"
+}
+`,
+				ExpectError: regexp.MustCompile(`no device has ID "no-such-device"`),
+			},
+			{
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
+data "homeassistant_area" "both" {
+  area_id = %q
+  name    = "Acc Reg Garden"
+}
+`, f.areaID),
+				ExpectError: regexp.MustCompile("Set exactly one of `area_id` and `name`"),
+			},
+			{
+				Config: acctest.ProviderConfig + `
+data "homeassistant_device" "neither" {}
+`,
+				ExpectError: regexp.MustCompile("Set exactly one of `device_id` and `name`"),
+			},
 			{
 				Config: acctest.ProviderConfig + fmt.Sprintf(`
 data "homeassistant_areas" "all" {}
@@ -154,37 +187,6 @@ output "area_listed" {
 					resource.TestCheckResourceAttr("data.homeassistant_device.by_name_by_user", "name", "Acc Moon"),
 					resource.TestCheckResourceAttr("data.homeassistant_device.by_integration_name", "device_id", f.deviceID),
 				),
-			},
-			{
-				Config: acctest.ProviderConfig + `
-data "homeassistant_area" "missing" {
-  name = "Acc Reg No Such Area"
-}
-`,
-				ExpectError: regexp.MustCompile(`no area has name "Acc Reg No Such Area"`),
-			},
-			{
-				Config: acctest.ProviderConfig + `
-data "homeassistant_device" "missing" {
-  device_id = "no-such-device"
-}
-`,
-				ExpectError: regexp.MustCompile(`no device has ID "no-such-device"`),
-			},
-			{
-				Config: acctest.ProviderConfig + fmt.Sprintf(`
-data "homeassistant_area" "both" {
-  area_id = %q
-  name    = "Acc Reg Garden"
-}
-`, f.areaID),
-				ExpectError: regexp.MustCompile("Set exactly one of `area_id` and `name`"),
-			},
-			{
-				Config: acctest.ProviderConfig + `
-data "homeassistant_device" "neither" {}
-`,
-				ExpectError: regexp.MustCompile("Set exactly one of `device_id` and `name`"),
 			},
 		},
 	})
