@@ -1,6 +1,6 @@
 # 18. Distribution: `toelke/homeassistant`, MPL-2.0, GoReleaser
 
-Date: 2026-10-03 · Status: Accepted
+Date: 2026-10-03 · Status: Accepted · Versioning superseded by ADR-0019
 
 ## Context
 

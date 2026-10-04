@@ -25,3 +25,4 @@ Definition of done, for every ticket:
 - Acceptance tests are green against both HA versions in the CI matrix.
 - `docs/` is regenerated.
 - The `spec/` file is updated if behaviour deviated from it.
+- `CHANGELOG.md` has an entry under `Unreleased` for every user-visible change.
