@@ -4,8 +4,15 @@ An OpenTofu (and Terraform) provider for managing a [Home Assistant](https://www
 instance as code: floors, areas, labels, entity and device settings, automations, scripts,
 scenes, helpers, dashboards, and integrations.
 
-> **Status:** early development. The provider configures, but has no resources yet. See
-> [`tickets/`](tickets/) for the implementation plan.
+> **Status:** early development. Pre-releases (`v0.0.x`) contain only what is already done; see
+> [`CHANGELOG.md`](CHANGELOG.md) for what is in each, and [`tickets/`](tickets/) for the plan.
+
+## Stability
+
+Until v1.0, the provider is not stable. Any minor release (`0.x`) may contain breaking changes to
+resources, attributes or state, and `0.0.x` pre-releases may break in any release. Every breaking
+change is listed under **Breaking** in [`CHANGELOG.md`](CHANGELOG.md). Pin an exact version
+(`version = "= 0.0.1"`) and read the changelog before you upgrade.
 
 ```hcl
 terraform {
@@ -74,6 +81,28 @@ tofu init -plugin-dir=/tmp/tofu-plugins
 Alternatively, use a `dev_overrides` block in your CLI configuration
 (`provider_installation { dev_overrides { "toelke/homeassistant" = "<dir of the binary>" } }`)
 and skip `tofu init`, as OpenTofu advises.
+
+### Releasing
+
+Pushing a `v*` tag runs [`.github/workflows/release.yml`](.github/workflows/release.yml).
+GoReleaser ([`.goreleaser.yml`](.goreleaser.yml)) builds the zips, writes `SHA256SUMS` and the
+registry manifest, signs the checksums with GPG, and publishes a GitHub release. Both registries
+pick it up from there.
+
+1. Move the `Unreleased` entries in `CHANGELOG.md` under the new version, and merge that.
+2. `git tag vX.Y.Z origin/main && git push origin vX.Y.Z`.
+
+Before the first release, these steps are needed once:
+
+1. Create a signing key without an expiry that needs renewal. Use RSA or DSA, because the
+   Terraform registry does not accept ECC keys:
+   `gpg --quick-gen-key "terraform-provider-homeassistant <you@example.org>" rsa4096 sign never`.
+2. Store it as repository secrets: `gpg --armor --export-secret-keys <FPR> | gh secret set
+   GPG_PRIVATE_KEY`, and the passphrase with `gh secret set PASSPHRASE`.
+3. Add the public key (`gpg --armor --export <FPR>`) to the Terraform registry (namespace
+   settings, "Signing Keys"), then publish the provider there from the GitHub repository.
+4. For OpenTofu, open a "Submit new provider" issue and a "Submit new signing key" issue (the
+   public key) at <https://github.com/opentofu/registry/issues/new/choose>.
 
 ## Repository layout
 
