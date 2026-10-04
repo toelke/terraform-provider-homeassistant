@@ -98,6 +98,7 @@ func (p *HomeAssistantProvider) Resources(_ context.Context) []func() resource.R
 		resources.NewFloor,
 		resources.NewInputBoolean,
 		resources.NewLabel,
+		resources.NewScene,
 		resources.NewScript,
 	}
 }

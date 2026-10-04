@@ -29,6 +29,11 @@ func NewAutomations(rest *RESTClient) ConfigItems {
 	return ConfigItems{rest: rest, domain: "automation", idInBody: true}
 }
 
+// NewScenes returns the config editor of scenes.
+func NewScenes(rest *RESTClient) ConfigItems {
+	return ConfigItems{rest: rest, domain: "scene", idInBody: true}
+}
+
 // NewScripts returns the config editor of scripts.
 func NewScripts(rest *RESTClient) ConfigItems {
 	return ConfigItems{rest: rest, domain: "script"}
