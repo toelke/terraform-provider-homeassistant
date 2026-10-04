@@ -50,7 +50,7 @@ data "homeassistant_integration" "any" {
   domain = "local_calendar"
 }
 `,
-				ExpectError: regexp.MustCompile(`2 config entries have domain "local_calendar"`),
+				ExpectError: regexp.MustCompile(`2 config entries have domain\s+"local_calendar"`),
 			},
 			{
 				Config: acctest.ProviderConfig + `
@@ -59,7 +59,7 @@ data "homeassistant_integration" "none" {
   title  = "Acc DS Missing"
 }
 `,
-				ExpectError: regexp.MustCompile(`no config entry has domain "local_calendar" and title "Acc DS Missing"`),
+				ExpectError: regexp.MustCompile(`no config entry has domain "local_calendar" and title\s+"Acc DS Missing"`),
 			},
 		},
 	})

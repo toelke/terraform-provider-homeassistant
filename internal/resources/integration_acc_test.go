@@ -229,7 +229,7 @@ resource "homeassistant_integration" "second" {
   depends_on = [homeassistant_integration.first]
 }
 `,
-				ExpectError: regexp.MustCompile(`config flow for local_calendar aborted: already_configured`),
+				ExpectError: regexp.MustCompile(`config flow for local_calendar aborted:\s+already_configured`),
 			},
 			{
 				// HA asks for a step the config does not have; the flow is aborted.
@@ -239,7 +239,7 @@ resource "homeassistant_integration" "wrong_step" {
   steps  = { confirm = {} }
 }
 `,
-				ExpectError: regexp.MustCompile(`asked for step "user", but the config only has "confirm"`),
+				ExpectError: regexp.MustCompile(`asked for step "user", but the config only has\s+"confirm"`),
 			},
 			{
 				Config: acctest.ProviderConfig,
