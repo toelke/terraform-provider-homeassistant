@@ -38,9 +38,9 @@ Commands: `config/floor_registry/list|create|update|delete` (key `floor_id`).
 |---|---|---|
 | `name` | string | required |
 | `id` | string | optional, computed |
-| `level` | number | optional |
+| `level` | number | optional; an integer, as HA requires |
 | `icon` | string | optional |
-| `aliases` | set(string) | optional |
+| `aliases` | set(string) | optional; defaults to `[]`, which is what HA reports for none |
 
 ### `homeassistant_area`
 

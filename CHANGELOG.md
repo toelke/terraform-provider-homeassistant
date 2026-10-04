@@ -7,6 +7,7 @@ breaking changes may land in minor versions and are marked **Breaking** (ADR-001
 
 - Data source `homeassistant_entity`: state and attributes of one entity.
 - Data source `homeassistant_template`: renders a Jinja template on the instance.
+- Resource `homeassistant_floor`, with import.
 
 ## 0.0.1
 
