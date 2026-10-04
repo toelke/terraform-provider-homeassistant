@@ -74,7 +74,8 @@ key `id`, so its entity is `script.<id>`. Create waits for that entity ID to app
 ## `homeassistant_scene`
 
 `config` is the scene body (`name`, `entities`, `icon`, …). `entities` maps entity IDs to target
-state objects.
+state objects. Like an automation's, the scene's entity ID derives from its `name` when it is first
+created, so `entity_id` is the `scene.*` state whose `attributes.id == id`.
 
 ## Docs requirements
 
