@@ -36,7 +36,8 @@ Do this before taking a new ticket. For each open PR (`gh pr list`), oldest firs
    needs the human, reply on the PR with options and a recommendation, and leave it open.
 4. **CI:** `gh pr checks --watch` until every check is green. Fix failures and push again.
 5. **Release** the worktree.
-6. **Merge** when `scripts/lgtm-check.sh <pr>` passes: `gh pr merge <pr> --merge --delete-branch`.
+6. **Merge** when `scripts/lgtm-check.sh <pr>` passes: `gh pr merge <pr> --merge`. GitHub deletes
+   the branch itself and retargets PRs stacked on it, so don't delete it yourself.
    The check passes once toelke has commented a bare "LGTM", nothing but rebases has changed
    since (resolving `CHANGELOG.md` conflicts counts as a rebase), and all checks are green. Agents post as toelke too, so your own comments always carry
    the Claude Code footer and are never just "LGTM".
