@@ -10,6 +10,7 @@ breaking changes may land in minor versions and are marked **Breaking** (ADR-001
 - Resource `homeassistant_floor`, with import.
 - Resource `homeassistant_automation`, with import. `config` takes the automation as an object,
   e.g. from `yamldecode(file(...))`.
+- Resource `homeassistant_input_boolean`, with import.
 
 ## 0.0.1
 
