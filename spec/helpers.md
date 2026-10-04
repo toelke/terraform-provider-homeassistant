@@ -7,6 +7,8 @@ check).
 
 Common arguments: `name` (required), `id` (optional, computed), `icon` (optional).
 Common computed: `entity_id` = `<domain>.<id>`.
+Update sends the whole helper, because HA replaces every field on `<domain>/update`. An optional
+attribute removed from config is therefore cleared in HA.
 Read: `<domain>/list`, find by ID; if missing → remove from state. Import: by ID.
 
 | Resource | Extra arguments | Plan-time validation |

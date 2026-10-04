@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 depends_on: [009]
 adrs: [0009, 0013]
 spec: [helpers.md]
@@ -12,5 +12,5 @@ A generic helper resource over `<domain>/list|create|update|delete`, reusing the
 machinery, with `input_boolean` as its first instance.
 
 ## Acceptance criteria
-- [ ] CRUD, import, the collision check, and an optional `id`.
-- [ ] `entity_id` is `input_boolean.<id>`.
+- [x] CRUD, import, the collision check, and an optional `id`.
+- [x] `entity_id` is `input_boolean.<id>`.
