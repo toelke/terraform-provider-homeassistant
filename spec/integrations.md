@@ -6,17 +6,24 @@ read back (ADR-0014).
 ## Config-flow driver
 
 ```
-RunFlow(ctx, handler string, entryID string /* "" or reconfigure target */, steps []Step) (entryID, error)
+ConfigFlows.Run(ctx, handler string, entryID string /* "" or reconfigure target */, steps []FlowStep) (entryID, error)
 
 POST /api/config/config_entries/flow            {"handler": h, "show_advanced_options": true[, "entry_id": id]}
 loop on result.type:
-  "form"         → find the step with result.step_id (else abort + error);
-                   if result.errors is non-empty after a submit → abort + error with the errors
+  "form"         → if result.errors is non-empty → abort + error with the errors
+                   find the step with result.step_id (else abort + error);
+                   a step already submitted once → abort + error (no loops)
                    POST /api/config/config_entries/flow/<flow_id>   step.data ∪ step.sensitive_data
+                   (on a HTTP error, e.g. 400 for data not matching the schema → abort + error)
   "create_entry" → return result.result.entry_id
-  "abort"        → error with result.reason (reconfigure success also ends as abort "reconfigure_successful")
+  "abort"        → reconfigure (entryID set) with reason "reconfigure_successful" → return entryID;
+                   otherwise error with result.reason (HA already ended the flow, no DELETE)
   other          → abort + error (unsupported: external steps, progress, menus)
 ```
+
+"abort" in the right-hand column means `DELETE /api/config/config_entries/flow/<flow_id>`. It is
+sent even if the context was cancelled. Steps are matched by `step_id`, not by position. On a key
+present in both maps, `sensitive_data` wins.
 
 Unit-tested against a fake HTTP server, with no real HA.
 
