@@ -53,7 +53,8 @@ release:
   extra_files:
     - glob: terraform-registry-manifest.json
       name_template: "{{ .ProjectName }}_{{ .Version }}_manifest.json"
-  # v0.x releases are pre-releases (see "Stability" in README.md).
+  # Only tags with a semver pre-release suffix (e.g. v0.1.0-rc1) become GitHub pre-releases.
+  # v0.0.x tags are pre-1.0 releases in the semver sense (ADR-0019) but normal GitHub releases.
   prerelease: auto
 
 changelog:

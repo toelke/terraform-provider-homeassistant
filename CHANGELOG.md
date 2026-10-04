@@ -1,7 +1,7 @@
 # Changelog
 
 All notable changes to this provider are listed here. Versions follow semver; before v1.0,
-breaking changes may land in minor versions and are marked **Breaking** (ADR-0018).
+breaking changes may land in minor versions and are marked **Breaking** (ADR-0018, ADR-0019).
 
 ## Unreleased
 
