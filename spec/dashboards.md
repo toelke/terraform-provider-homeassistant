@@ -99,4 +99,4 @@ locals {
 #   }]
 ```
 
-Card builder functions come later ([functions.md](functions.md)).
+Card builder functions ([functions.md](functions.md)) build the same objects with less typing.

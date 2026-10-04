@@ -1,0 +1,12 @@
+{
+  "entities": [
+    "light.kitchen",
+    {
+      "entity": "light.hall",
+      "name": "Hall"
+    }
+  ],
+  "show_header_toggle": false,
+  "title": "Lights",
+  "type": "entities"
+}

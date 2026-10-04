@@ -1,0 +1,9 @@
+{
+  "cards": [
+    {
+      "entity": "lock.front_door",
+      "type": "tile"
+    }
+  ],
+  "type": "grid"
+}
