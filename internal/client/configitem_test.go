@@ -107,3 +107,44 @@ func TestConfigItemsFindEntityGivesUp(t *testing.T) {
 		t.Errorf("err = %v, want ErrEntityNotFound", err)
 	}
 }
+
+func TestScriptsSaveLeavesIDOut(t *testing.T) {
+	c := serve(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/config/script/config/goodnight" {
+			t.Errorf("%s %s", r.Method, r.URL.Path)
+		}
+		b, _ := io.ReadAll(r.Body)
+		if string(b) != `{"alias":"Goodnight"}` {
+			t.Errorf("body = %s", b)
+		}
+		_, _ = w.Write([]byte(`{"result":"ok"}`))
+	})
+	if err := NewScripts(c).Save(t.Context(), "goodnight", json.RawMessage(`{"alias":"Goodnight"}`)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestScriptsFindEntityByEntityID(t *testing.T) {
+	var calls atomic.Int32
+	c := serve(t, func(w http.ResponseWriter, _ *http.Request) {
+		// Before the reload: only an automation with the same id, and a script whose entity ID
+		// merely starts with it.
+		states := `[{"entity_id":"automation.goodnight","attributes":{"id":"goodnight"}},
+			{"entity_id":"script.goodnight_2","attributes":{}}]`
+		if calls.Add(1) >= 2 {
+			states = `[{"entity_id":"automation.goodnight","attributes":{"id":"goodnight"}},
+				{"entity_id":"script.goodnight","attributes":{}}]`
+		}
+		_, _ = w.Write([]byte(states))
+	})
+	got, err := NewScripts(c).FindEntity(t.Context(), "goodnight", 10*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "script.goodnight" {
+		t.Errorf("entity = %q", got)
+	}
+	if n := calls.Load(); n != 2 {
+		t.Errorf("polled %d times, want 2", n)
+	}
+}
