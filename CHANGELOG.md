@@ -13,3 +13,4 @@ First pre-release.
   `HOMEASSISTANT_*` environment variables.
 - Data source `homeassistant_config`.
 - Resource `homeassistant_label`.
+- Resource `homeassistant_dashboard`.
