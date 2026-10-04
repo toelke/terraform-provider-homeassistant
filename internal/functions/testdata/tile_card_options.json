@@ -1,0 +1,10 @@
+{
+  "entity": "light.kitchen",
+  "features": [
+    {
+      "type": "light-brightness"
+    }
+  ],
+  "name": "Kitchen",
+  "type": "tile"
+}

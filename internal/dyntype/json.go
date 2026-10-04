@@ -146,11 +146,7 @@ func canonicalNumber(f *big.Float) json.Number {
 // goValue converts the value into a decoded JSON tree: map[string]any, []any, string, bool,
 // json.Number, or nil.
 func (v Value) goValue() (any, error) {
-	tv, err := v.ToTerraformValue(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	return toGo(tv)
+	return GoValue(v)
 }
 
 func toGo(tv tftypes.Value) (any, error) {
@@ -259,4 +255,20 @@ func fromGo(g any) (attr.Value, error) {
 	default:
 		return nil, fmt.Errorf("unsupported JSON value %T", g)
 	}
+}
+
+// GoValue converts a wholly known framework value of any type into a decoded JSON tree:
+// map[string]any, []any, string, bool, json.Number, or nil.
+func GoValue(v attr.Value) (any, error) {
+	tv, err := v.ToTerraformValue(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	return toGo(tv)
+}
+
+// FromGoValue converts a decoded JSON tree, as returned by GoValue, into a framework value:
+// objects become object values and arrays become tuple values.
+func FromGoValue(g any) (attr.Value, error) {
+	return fromGo(g)
 }

@@ -269,3 +269,44 @@ resource "homeassistant_dashboard" "test" {
 		},
 	})
 }
+
+// TestAccDashboard_builderFunctions builds a dashboard config with the card builder functions,
+// so the arguments pass through OpenTofu's own type conversion.
+func TestAccDashboard_builderFunctions(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		CheckDestroy:             checkDashboardGone(t, "acc-functions"),
+		Steps: []resource.TestStep{{
+			Config: acctest.ProviderConfig + `
+resource "homeassistant_dashboard" "test" {
+  url_path = "acc-functions"
+  title    = "Acc Functions"
+  config = {
+    views = [{
+      type  = "sections"
+      title = "Overview"
+      sections = [
+        provider::homeassistant::grid_section([
+          provider::homeassistant::tile_card("sun.sun", { name = "Sun", icon = null }),
+          provider::homeassistant::entities_card(["sun.sun", { entity = "sun.sun", name = "Sun" }]),
+          { type = "button", entity = "sun.sun" },
+        ], "Sky"),
+        provider::homeassistant::grid_section(
+          [provider::homeassistant::heading_card("Alone")], "", { column_span = 2 },
+        ),
+      ]
+    }]
+  }
+}
+`,
+			Check: checkDashboardConfig(t, "acc-functions", `{"views":[{"type":"sections","title":"Overview","sections":[
+				{"type":"grid","cards":[
+					{"type":"heading","heading":"Sky"},
+					{"type":"tile","entity":"sun.sun","name":"Sun"},
+					{"type":"entities","entities":["sun.sun",{"entity":"sun.sun","name":"Sun"}]},
+					{"type":"button","entity":"sun.sun"}]},
+				{"type":"grid","column_span":2,"cards":[{"type":"heading","heading":"Alone"}]}]}]}`),
+		}},
+	})
+}

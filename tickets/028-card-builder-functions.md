@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 depends_on: [022]
 adrs: [0007]
 spec: [functions.md]
@@ -8,5 +8,5 @@ spec: [functions.md]
 # Builder functions for cards and sections
 
 ## Acceptance criteria
-- [ ] Golden-JSON unit tests per function.
-- [ ] Examples in `examples/functions/`.
+- [x] Golden-JSON unit tests per function.
+- [x] Examples in `examples/functions/`.

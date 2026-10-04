@@ -13,5 +13,27 @@ Candidates, prioritised by how much they reduce verbosity:
 - **Cards:** `tile_card(entity, ...)`, `entities_card(entities, ...)`, `heading_card(text)`,
   `grid_section(cards, heading)`
 
+## Signature convention
+
+Required arguments are positional. Every other key goes in one optional trailing `options`
+object (a variadic parameter of at most one element), which is merged into the result: keys with
+a null value are left out, and setting a key that a positional argument already sets is an error.
+No argument may be null, because OpenTofu 1.11 fails to pass a top-level null argument to a
+provider function; an "absent" value is spelled with an empty value instead.
+
+```hcl
+provider::homeassistant::tile_card("light.kitchen")                     # { type = "tile", entity = "light.kitchen" }
+provider::homeassistant::tile_card("light.kitchen", { name = "Kitchen" })
+```
+
+## Cards (shipped)
+
+| Function | Result |
+|---|---|
+| `tile_card(entity, options...)` | `{ type = "tile", entity = entity, ... }` |
+| `entities_card(entities, options...)` | `{ type = "entities", entities = entities, ... }`; each row is an entity ID or an object |
+| `heading_card(heading, options...)` | `{ type = "heading", heading = heading, ... }` |
+| `grid_section(cards, heading, options...)` | `{ type = "grid", cards = [...], ... }`; a non-empty `heading` becomes a heading card in front of `cards`, `""` means none |
+
 Unit tests compare each function's output with a golden JSON snapshot. Each function has an
 example in `examples/functions/`.

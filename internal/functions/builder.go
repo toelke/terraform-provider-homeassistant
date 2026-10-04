@@ -1,0 +1,120 @@
+// Package functions defines the provider's builder functions (ADR-0007): pure functions that
+// return plain objects for use inside a dynamic config.
+package functions
+
+import (
+	"context"
+	"fmt"
+	"sort"
+
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/function"
+	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/toelke/terraform-provider-homeassistant/internal/dyntype"
+)
+
+// builder is a builder function. Its result is the object returned by build, with the
+// optional trailing options object merged in.
+type builder struct {
+	name        string
+	summary     string
+	description string
+	params      []function.Parameter
+	// build turns the arguments, as decoded JSON trees, into the result object, or reports an
+	// invalid argument.
+	build func(args []any) (map[string]any, *function.FuncError)
+}
+
+var _ function.Function = builder{}
+
+// optionsParameter is the trailing, optional argument of every builder function.
+var optionsParameter = function.DynamicParameter{
+	Name: "options",
+	MarkdownDescription: "At most one object of further keys to set on the result, e.g. " +
+		"`{ name = \"Kitchen\" }`. Keys with a null value are left out. It must not set a key " +
+		"that another argument already sets.",
+}
+
+func (b builder) Metadata(_ context.Context, _ function.MetadataRequest, resp *function.MetadataResponse) {
+	resp.Name = b.name
+}
+
+func (b builder) Definition(_ context.Context, _ function.DefinitionRequest, resp *function.DefinitionResponse) {
+	resp.Definition = function.Definition{
+		Summary:             b.summary,
+		MarkdownDescription: b.description,
+		Parameters:          b.params,
+		VariadicParameter:   optionsParameter,
+		Return:              function.DynamicReturn{},
+	}
+}
+
+func (b builder) Run(ctx context.Context, req function.RunRequest, resp *function.RunResponse) {
+	values := make([]attr.Value, len(b.params)+1)
+	targets := make([]any, len(values))
+	for i := range values {
+		targets[i] = &values[i]
+	}
+	if resp.Error = req.Arguments.Get(ctx, targets...); resp.Error != nil {
+		return
+	}
+
+	args := make([]any, len(values))
+	for i, v := range values {
+		g, err := dyntype.GoValue(v)
+		if err != nil {
+			resp.Error = function.NewArgumentFuncError(int64(i), err.Error())
+			return
+		}
+		args[i] = g
+	}
+
+	result, funcErr := b.build(args[:len(b.params)])
+	if funcErr != nil {
+		resp.Error = funcErr
+		return
+	}
+	if resp.Error = mergeOptions(result, args[len(b.params)], len(b.params)); resp.Error != nil {
+		return
+	}
+
+	av, err := dyntype.FromGoValue(result)
+	if err != nil {
+		resp.Error = function.NewFuncError(err.Error())
+		return
+	}
+	resp.Error = resp.Result.Set(ctx, types.DynamicValue(av))
+}
+
+// mergeOptions sets the keys of the options object on result. variadic is the decoded variadic
+// argument list, and position is the position of its first element.
+func mergeOptions(result map[string]any, variadic any, position int) *function.FuncError {
+	list, _ := variadic.([]any)
+	if len(list) > 1 {
+		return function.NewArgumentFuncError(int64(position+1), "at most one options object is allowed")
+	}
+	if len(list) == 0 {
+		return nil
+	}
+	options, ok := list[0].(map[string]any)
+	if !ok {
+		return function.NewArgumentFuncError(int64(position), "options must be an object")
+	}
+	keys := make([]string, 0, len(options))
+	for k := range options {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		if options[k] == nil {
+			continue
+		}
+		if _, set := result[k]; set {
+			return function.NewArgumentFuncError(int64(position),
+				fmt.Sprintf("options must not set %q: another argument already sets it", k))
+		}
+		result[k] = options[k]
+	}
+	return nil
+}

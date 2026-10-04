@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/function"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -14,10 +15,11 @@ import (
 
 	"github.com/toelke/terraform-provider-homeassistant/internal/client"
 	"github.com/toelke/terraform-provider-homeassistant/internal/datasources"
+	"github.com/toelke/terraform-provider-homeassistant/internal/functions"
 	"github.com/toelke/terraform-provider-homeassistant/internal/resources"
 )
 
-var _ provider.Provider = (*HomeAssistantProvider)(nil)
+var _ provider.ProviderWithFunctions = (*HomeAssistantProvider)(nil)
 
 // HomeAssistantProvider is the `homeassistant` provider.
 type HomeAssistantProvider struct {
@@ -106,5 +108,14 @@ func (p *HomeAssistantProvider) DataSources(_ context.Context) []func() datasour
 		datasources.NewConfig,
 		datasources.NewEntity,
 		datasources.NewTemplate,
+	}
+}
+
+func (p *HomeAssistantProvider) Functions(_ context.Context) []func() function.Function {
+	return []func() function.Function{
+		functions.NewEntitiesCard,
+		functions.NewGridSection,
+		functions.NewHeadingCard,
+		functions.NewTileCard,
 	}
 }
