@@ -34,7 +34,9 @@ Do this before taking a new ticket. For each open PR (`gh pr list`), oldest firs
 3. **Comments:** address every unresolved review comment and thread. Fix it, or reply with
    the reason you didn't. A comment that asks for a decision follows the ADR rule above. If it
    needs the human, reply on the PR with options and a recommendation, and leave it open.
-4. **CI:** `gh pr checks --watch` until every check is green. Fix failures and push again.
+4. **CI:** first check `gh pr view <pr> --json mergeable`. If it is `CONFLICTING`, `main` has
+   moved: go back to step 2, because GitHub runs no checks on a conflicting PR. Otherwise
+   `gh pr checks --watch` until every check is green. Fix failures and push again.
 5. **Release** the worktree.
 6. **Merge** when `scripts/lgtm-check.sh <pr>` passes: `gh pr merge <pr> --merge`. GitHub deletes
    the branch itself and retargets PRs stacked on it, so don't delete it yourself.
