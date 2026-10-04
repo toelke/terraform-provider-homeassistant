@@ -75,12 +75,16 @@ Commands: `config/label_registry/list|create|update|delete` (key `label_id`).
 These edit registry entries owned by integrations. They are **field-granular**:
 
 - Only attributes set in config are sent, read into state, or compared.
-- **Create:** poll until the entry exists (`timeouts.create`, default 60s), then send an
-  `update` with the set fields.
+- **Create:** poll with backoff until the entry exists (`timeouts = { create = "…" }`, default
+  60s), then send an `update` with the set fields. On timeout, the error names the entry and
+  suggests checking the ID, the integration, and the timeout.
 - **Update:** send the changed fields. A field removed from config is reset to its default.
 - **Delete:** reset the configured fields to defaults (`null`, or `[]` for labels). If the entry
   is gone, do nothing.
-- **Read:** if the entry is missing → remove from state.
+- **Read:** if the entry is missing → remove from state. Set attributes are refreshed, so a
+  change made elsewhere to a configured field shows as drift; unset ones stay null.
+- **Import:** by ID. The imported state manages no field; the first plan sets the configured
+  ones.
 
 ### `homeassistant_entity_settings`
 
