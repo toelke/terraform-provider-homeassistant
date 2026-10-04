@@ -39,5 +39,9 @@ Do this before taking a new ticket. For each open PR (`gh pr list`), oldest firs
    body links the ticket and lists any spec changes.
 6. **Clean up:** `git worktree remove ../tofu-ha-NNN`.
 
+Locally, build and test for the host platform only, e.g.
+`goreleaser build --snapshot --clean --single-target`. Cross-compiling is CI's job; a local
+build of every target overloads the machine.
+
 Agents may create branches, commit, push, and open PRs in this repo without asking. Merging is
 left to the human.
