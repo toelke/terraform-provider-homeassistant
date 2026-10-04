@@ -61,6 +61,17 @@ Do this before taking a new ticket. For each open PR (`gh pr list`), oldest firs
    body links the ticket and lists any spec changes.
 6. **Release** the worktree.
 
+## Tooling
+
+- Commands (build, unit tests, docs generation, acceptance tests and their environment) are in
+  the README's "Development" section. There is no Makefile.
+- `scripts/pr-status.sh` shows every open PR in one table: mergeable, commits behind `main`,
+  checks, unresolved threads, who commented last, and the LGTM check. Start PR tending with it.
+- Acceptance tests need Docker. If `docker info` works, run them for the packages you changed
+  before pushing; otherwise CI runs them.
+- `CHANGELOG.md` merges with git's `union` driver (`.gitattributes`), so rebases keep both sides'
+  entries without a conflict. Check the result reads correctly.
+
 Locally, build and test for the host platform only, e.g.
 `goreleaser build --snapshot --clean --single-target`. Cross-compiling is CI's job; a local
 build of every target overloads the machine.
