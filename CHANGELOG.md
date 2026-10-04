@@ -32,6 +32,12 @@ breaking changes may land in minor versions and are marked **Breaking** (ADR-001
 - Resource `homeassistant_entity_settings`, with import: name, icon, area, labels, hidden and
   disabled of an entity an integration owns. Only the configured attributes are managed and,
   on destroy, reset.
+- Resource `homeassistant_esphome`, with import: adds an ESPHome device by `host`, with
+  `noise_psk`, and sets `allow_service_calls` and `subscribe_logs`. Changing `host`, `port` or
+  `password` reconfigures the entry in place.
+- Resource `homeassistant_mqtt`, with import: the MQTT broker connection, with TLS and
+  WebSockets, plus discovery and birth and will messages. Broker changes reconfigure the entry in
+  place, and options go through the options flow.
 
 ## 0.0.1
 

@@ -90,7 +90,7 @@ Which operation uses which transport:
 | `homeassistant_input_boolean`, `_number`, `_text`, `_select`, `_datetime`, `_button` | generated | [helpers.md](helpers.md) |
 | `homeassistant_dashboard` | `url_path` | [dashboards.md](dashboards.md) |
 | `homeassistant_integration` | `entry_id` | [integrations.md](integrations.md) |
-| `homeassistant_esphome`, `homeassistant_mqtt` (later) | `entry_id` | [integrations.md](integrations.md) |
+| `homeassistant_esphome`, `homeassistant_mqtt` | `entry_id` | [integrations.md](integrations.md) |
 
 ### Functions (later, ADR-0007)
 
