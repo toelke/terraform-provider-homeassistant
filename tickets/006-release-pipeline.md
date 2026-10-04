@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 depends_on: [002, 005]
 adrs: [0018]
 spec: []
