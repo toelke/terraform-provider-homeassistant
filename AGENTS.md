@@ -38,7 +38,7 @@ Do this before taking a new ticket. For each open PR (`gh pr list`), oldest firs
 5. **Release** the worktree.
 6. **Merge** when `scripts/lgtm-check.sh <pr>` passes: `gh pr merge <pr> --merge --delete-branch`.
    The check passes once toelke has commented a bare "LGTM", nothing but rebases has changed
-   since, and all checks are green. Agents post as toelke too, so your own comments always carry
+   since (resolving `CHANGELOG.md` conflicts counts as a rebase), and all checks are green. Agents post as toelke too, so your own comments always carry
    the Claude Code footer and are never just "LGTM".
 
 ## Taking the next ticket

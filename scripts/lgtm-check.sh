@@ -3,8 +3,9 @@
 #   - toelke's newest verdict is an LGTM (an approving review, or a review or comment whose whole
 #     body is "LGTM"), and no later review requests changes. Agents post as toelke too, but never
 #     a bare "LGTM", so the exact match tells the human apart;
-#   - the PR has not changed for real since then: rebases are fine, so the diff against its
-#     merge-base must be identical (same `git patch-id`) to the diff that was LGTM'd;
+#   - the PR has not changed for real since then: rebases are fine, including resolved conflicts
+#     in CHANGELOG.md, so its changed lines outside CHANGELOG.md must be identical (same
+#     `git patch-id`) to the ones that were LGTM'd;
 #   - GitHub reports it mergeable, and every check has passed.
 # Prints the reason when it exits 1.
 set -euo pipefail
@@ -50,7 +51,12 @@ base_branch="$(jq -r .baseRefName <<<"$info")"
 base="origin/$base_branch"
 head="$(jq -r .headRefOid <<<"$info")"
 git fetch -q origin "$base_branch" "$reviewed" "$head"
-pid() { git diff "$(git merge-base "$base" "$1")" "$1" | git patch-id --stable | cut -d' ' -f1; }
+# Compare only the changed lines (-U0), so main moving around the PR's hunks doesn't count, and
+# leave out CHANGELOG.md, where every PR appends to `Unreleased` and rebases routinely conflict.
+pid() {
+  git diff -U0 "$(git merge-base "$base" "$1")" "$1" -- . ':(exclude)CHANGELOG.md' \
+    | git patch-id --stable | cut -d' ' -f1
+}
 [[ "$(pid "$reviewed")" == "$(pid "$head")" ]] \
   || fail "changed since $reviewer's LGTM on ${reviewed:0:7} ($at); ask for a new LGTM"
 
