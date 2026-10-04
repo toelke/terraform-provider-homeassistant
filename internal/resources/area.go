@@ -175,6 +175,12 @@ func (r *areaResource) Create(ctx context.Context, req resource.CreateRequest, r
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	// Unlike update, create rejects null, so unset fields are left out.
+	for k, v := range fields {
+		if p, ok := v.(*string); ok && p == nil {
+			delete(fields, k)
+		}
+	}
 
 	g := generatedID{
 		kind:     "area",
