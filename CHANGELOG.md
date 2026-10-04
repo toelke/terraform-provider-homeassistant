@@ -26,6 +26,9 @@ breaking changes may land in minor versions and are marked **Breaking** (ADR-001
 - Resource `homeassistant_integration`, with import: creates a config entry by answering its
   config flow with `steps`, with secrets in `sensitive_steps`.
 - Data source `homeassistant_integration`: one config entry by domain and optional title.
+- Data sources `homeassistant_areas` and `homeassistant_area` (by ID or name).
+- Data sources `homeassistant_devices`, filtered by integration, manufacturer, model, area, or
+  label, and `homeassistant_device` (by ID or name).
 
 ## 0.0.1
 

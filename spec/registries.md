@@ -135,12 +135,14 @@ ID and import ID: `device_id`.
 ## Data sources
 
 - `homeassistant_areas` — `config/area_registry/list`. `areas` is a list of objects with
-  `area_id`, `name`, `floor_id`, `icon`, `aliases`, `labels`.
-- `homeassistant_area` — the same list, matched by exactly one of `area_id` or `name`. Zero or
-  multiple matches is an error.
-- `homeassistant_devices` — `config/device_registry/list`. Filters: `integration` (resolved
-  through config entries' domain), `manufacturer`, `model`, `area_id`, `label`. `devices` is a
-  list of objects with `device_id`, `name`, `name_by_user`, `manufacturer`, `model`,
-  `sw_version`, `area_id`, `labels`, `config_entries`.
+  `area_id`, `name`, `floor_id`, `icon`, `aliases`, `labels`, sorted by `area_id`.
+- `homeassistant_area` — the same list, matched by exactly one of `area_id` or `name` (compared
+  exactly). Zero or multiple matches is an error.
+- `homeassistant_devices` — `config/device_registry/list`. Filters, all compared exactly:
+  `integration` (resolved through the domain of the config entries from `config_entries/get`; an
+  unknown domain matches nothing), `manufacturer`, `model`, `area_id`, `label` (a label ID).
+  `devices` is a list of objects with `device_id`, `name`, `name_by_user`, `manufacturer`,
+  `model`, `sw_version`, `area_id`, `labels`, `config_entries`, sorted by `device_id`.
 - `homeassistant_device` — matched by exactly one of `device_id` or `name`, which is compared with
-  `name_by_user` first, then `name`. Ambiguous matches are an error.
+  `name_by_user` first, then, only if no device matches that way, with `name`. Ambiguous matches
+  are an error. A configured `name` stays as given in state, even if it matched `name_by_user`.
