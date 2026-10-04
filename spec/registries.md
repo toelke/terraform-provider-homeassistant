@@ -24,7 +24,8 @@ Floor, area, and label share this behaviour:
 - **Slugify:** `client.Slugify` ports HA's `util.slugify` (python-slugify with `_` as
   separator). It transliterates with go-unidecode, corrected by a table of the code points where
   HA's text-unidecode differs. `scripts/gen-slug-tables.sh` regenerates that table from an HA
-  image.
+  image. The table stays under text-unidecode's Artistic License, not MPL-2.0; the script writes
+  the license header, and `THIRD_PARTY_NOTICES.md` holds the attribution.
 - **Update:** in place, including `name`. Changing `id` forces replacement.
 - **Read:** list and find by ID. If missing → remove from state.
 - **Import:** by ID.
