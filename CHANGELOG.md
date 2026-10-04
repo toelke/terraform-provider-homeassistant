@@ -23,6 +23,9 @@ breaking changes may land in minor versions and are marked **Breaking** (ADR-001
 - Resources `homeassistant_input_number`, `homeassistant_input_text`, `homeassistant_input_select`,
   `homeassistant_input_datetime` and `homeassistant_input_button`, with import and plan-time
   validation.
+- Resource `homeassistant_integration`, with import: creates a config entry by answering its
+  config flow with `steps`, with secrets in `sensitive_steps`.
+- Data source `homeassistant_integration`: one config entry by domain and optional title.
 
 ## 0.0.1
 

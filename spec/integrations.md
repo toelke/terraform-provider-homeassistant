@@ -32,18 +32,18 @@ Unit-tested against a fake HTTP server, with no real HA.
 ```hcl
 resource "homeassistant_integration" "shelly" {
   domain = "shelly"
-  step {
-    step_id = "user"
-    data    = { host = "192.168.1.50" }
+  steps = {
+    user = { host = "192.168.1.50" }
   }
 }
 
 resource "homeassistant_integration" "cloud" {
   domain = "my_cloud"
-  step {
-    step_id        = "user"
-    data           = { username = "me@example.com" }
-    sensitive_data = { password = var.cloud_password }
+  steps = {
+    user = { username = "me@example.com" }
+  }
+  sensitive_steps = {
+    user = { password = var.cloud_password }
   }
 }
 ```
@@ -51,26 +51,36 @@ resource "homeassistant_integration" "cloud" {
 | Argument | Type | |
 |---|---|---|
 | `domain` | string | required, forces replacement |
-| `step` | list of blocks, min 1 | forces replacement |
-| `step.step_id` | string | required |
-| `step.data` | map(dynamic) | optional |
-| `step.sensitive_data` | map(dynamic), sensitive | optional |
+| `steps` | object: `step_id` → object of fields (dynamic) | required, at least one step; forces replacement |
+| `sensitive_steps` | same shape as `steps`, sensitive | optional; forces replacement |
+
+ADR-0014 describes ordered `step` blocks with `step_id`, `data`, and `sensitive_data`.
+terraform-plugin-framework rejects dynamic attributes inside blocks and collections ("Dynamic
+types inside of collections are not currently supported"), so the steps are two dynamic objects
+keyed by `step_id` instead. The driver matches steps by `step_id` anyway, so order carries no
+meaning, and a `step_id` cannot appear twice. A step's driver input is `steps[id]` as `data` and
+`sensitive_steps[id]` as `sensitive_data`; a step may appear in only one of the two. A form
+without fields is answered by `{}`. This deviation awaits the human's decision on the PR.
 
 | Computed | |
 |---|---|
 | `id` | `entry_id` |
 | `title`, `state`, `disabled_by` | from `config_entries/get` |
 
+- **Create:** run the config-flow driver, then read the new entry for the computed attributes.
 - **Read:** `config_entries/get` filtered by `domain`, matched on `entry_id`. If gone → remove
   from state. Inputs are never compared.
-- **Delete:** `DELETE /api/config/config_entries/entry/<id>`.
-- **Import:** by `entry_id`. The `step` blocks cannot be recovered, so after import the user
-  writes them. Because they cannot be compared, this causes no diff and no replacement until the
-  steps are edited.
+- **Delete:** `DELETE /api/config/config_entries/entry/<id>`. An entry that is already gone is
+  not an error.
+- **Import:** by `entry_id`, read across all domains. The steps cannot be recovered, so after
+  import they are null and the user writes them. The next plan is an in-place update that only
+  records them in state; nothing is sent to HA. After that, changing them forces replacement as
+  usual. (A null `steps` in state marks the import, since `steps` is required otherwise.)
 
 ## `data.homeassistant_integration`
 
-Arguments: `domain` (required) and `title` (optional). It must match exactly one entry.
+Arguments: `domain` (required) and `title` (optional). It must match exactly one entry; no match
+and several matches are errors that list the candidates.
 Computed: `id`/`entry_id`, `title`, `state`, `disabled_by`.
 
 ## Later: typed integrations

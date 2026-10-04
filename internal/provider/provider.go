@@ -105,6 +105,7 @@ func (p *HomeAssistantProvider) Resources(_ context.Context) []func() resource.R
 		resources.NewInputNumber,
 		resources.NewInputSelect,
 		resources.NewInputText,
+		resources.NewIntegration,
 		resources.NewLabel,
 		resources.NewScene,
 		resources.NewScript,
@@ -116,6 +117,7 @@ func (p *HomeAssistantProvider) DataSources(_ context.Context) []func() datasour
 		datasources.NewConfig,
 		datasources.NewEntity,
 		datasources.NewEntities,
+		datasources.NewIntegration,
 		datasources.NewTemplate,
 	}
 }
