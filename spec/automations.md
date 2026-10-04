@@ -12,11 +12,13 @@ These use REST config endpoints. Each resource has a user-chosen `id` (ADR-0008)
 | Delete | `DELETE /api/config/<domain>/config/<id>` |
 | Import | by `id` |
 
-- HA reloads asynchronously after a write. Create and Update then poll `GET /api/states` until
-  the entity appears, which sets `entity_id`.
+- HA reloads asynchronously after a write. Create then polls `GET /api/states` until the entity
+  appears, which sets `entity_id`. If it has not appeared after a minute, the apply fails and the
+  resource is tainted. Update does not wait: the entity ID never changes once the entity exists.
 - A 400 response carries HA's validation message, which becomes the diagnostic.
-- `config` must not contain an `id` key; the provider owns it. On Read, the provider strips `id`
-  from the returned object before comparing.
+- `config` must be an object and must not contain an `id` key (checked at plan time); the
+  provider owns it. YAML copied from the HA UI needs its `id:` line removed. On Read, the
+  provider strips `id` from the returned object before comparing.
 
 | Argument | Type | |
 |---|---|---|

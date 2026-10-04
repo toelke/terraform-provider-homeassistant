@@ -101,6 +101,21 @@ func TestRESTOtherStatusIsHTTPError(t *testing.T) {
 	}
 }
 
+func TestRESTHTTPErrorUsesHAMessage(t *testing.T) {
+	c := serve(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"message": "Message malformed: required key not provided"}`))
+	})
+	err := c.Get(t.Context(), "config", nil)
+	var httpErr *HTTPError
+	if !errors.As(err, &httpErr) {
+		t.Fatalf("err = %v, want *HTTPError", err)
+	}
+	if httpErr.StatusCode != http.StatusBadRequest || httpErr.Body != "Message malformed: required key not provided" {
+		t.Errorf("got %+v", httpErr)
+	}
+}
+
 func TestRESTConnectionFailureIsUnreachable(t *testing.T) {
 	// Grab a free port, then close it, so nothing listens there.
 	l, err := net.Listen("tcp", "127.0.0.1:0")
