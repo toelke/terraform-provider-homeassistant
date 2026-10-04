@@ -2,10 +2,8 @@ package resources_test
 
 import (
 	"context"
-	"net/url"
 	"regexp"
 	"testing"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
@@ -15,20 +13,11 @@ import (
 	"github.com/toelke/terraform-provider-homeassistant/internal/client"
 )
 
-func TestMain(m *testing.M) {
-	acctest.Main(m)
-}
-
 // labels returns the label registry of the shared instance, for setting up and checking what
 // the provider does.
 func labels(t *testing.T) client.Registry[client.Label] {
 	t.Helper()
-	ha := acctest.SharedInstance(t)
-	u, err := url.Parse(ha.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return client.Labels(client.New(client.Config{URL: u, Token: ha.Token, Timeout: 30 * time.Second}).WS)
+	return client.Labels(haClient(t).WS)
 }
 
 // checkLabelGone fails if HA has a label with the given ID.

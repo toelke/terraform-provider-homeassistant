@@ -63,10 +63,10 @@ resource "homeassistant_dashboard" "wall_tablet" {
 
 | Operation | Calls |
 |---|---|
-| Create | `lovelace/dashboards/create` (metadata) → `lovelace/config/save` (`url_path`, `config`) |
-| Read | `lovelace/dashboards/list` (find by `url_path`; missing → remove from state) + `lovelace/config` |
-| Update | `lovelace/dashboards/update` (by `dashboard_id`) if metadata changed; `lovelace/config/save` if config changed |
-| Delete | `lovelace/dashboards/delete` (by `dashboard_id`) |
+| Create | `lovelace/dashboards/create` (metadata) → `lovelace/config/save` (`url_path`, `config`); if the save fails, the dashboard is deleted again |
+| Read | `lovelace/dashboards/list` (find by `url_path`; missing → remove from state; not `mode: storage` → error) + `lovelace/config` (`force: true`; `config_not_found` → `config` null, so the next apply saves it) |
+| Update | `lovelace/dashboards/update` (by `dashboard_id`) if metadata changed, with all four fields (an unset `icon` is sent as null, which clears it); `lovelace/config/save` if config changed |
+| Delete | `lovelace/dashboards/delete` (by `dashboard_id`; `not_found` counts as deleted) |
 
 ## Reuse (ADR-0007)
 
