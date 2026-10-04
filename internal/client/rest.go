@@ -22,6 +22,36 @@ func (c *RESTClient) Get(ctx context.Context, path string, out any) error {
 // the decoded JSON response. Failures map to ErrUnreachable, ErrUnauthorized, ErrNotFound, or an
 // *HTTPError.
 func (c *RESTClient) Do(ctx context.Context, method, path string, body, out any) error {
+	return c.send(ctx, method, path, body, func(endpoint string, r io.Reader) error {
+		if out == nil {
+			return nil
+		}
+		if err := json.NewDecoder(r).Decode(out); err != nil {
+			return fmt.Errorf("decoding response of %s %s: %w", method, endpoint, err)
+		}
+		return nil
+	})
+}
+
+// DoText is Do for endpoints that answer with plain text instead of JSON, e.g. `/api/template`.
+// It returns the response body.
+func (c *RESTClient) DoText(ctx context.Context, method, path string, body any) (string, error) {
+	var text string
+	err := c.send(ctx, method, path, body, func(endpoint string, r io.Reader) error {
+		b, err := io.ReadAll(r)
+		if err != nil {
+			return fmt.Errorf("reading response of %s %s: %w", method, endpoint, err)
+		}
+		text = string(b)
+		return nil
+	})
+	return text, err
+}
+
+// send sends the request and passes a successful response body to read.
+func (c *RESTClient) send(ctx context.Context, method, path string, body any,
+	read func(endpoint string, r io.Reader) error,
+) error {
 	endpoint := c.cfg.URL.JoinPath("api", path).String()
 
 	var reqBody io.Reader
@@ -53,13 +83,7 @@ func (c *RESTClient) Do(ctx context.Context, method, path string, body, out any)
 	if err := statusError(resp); err != nil {
 		return fmt.Errorf("%s %s: %w", method, endpoint, err)
 	}
-	if out == nil {
-		return nil
-	}
-	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
-		return fmt.Errorf("decoding response of %s %s: %w", method, endpoint, err)
-	}
-	return nil
+	return read(endpoint, resp.Body)
 }
 
 func statusError(resp *http.Response) error {

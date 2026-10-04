@@ -101,5 +101,7 @@ func (p *HomeAssistantProvider) Resources(_ context.Context) []func() resource.R
 func (p *HomeAssistantProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		datasources.NewConfig,
+		datasources.NewEntity,
+		datasources.NewTemplate,
 	}
 }

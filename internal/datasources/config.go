@@ -1,9 +1,7 @@
-// Package datasources holds the provider's data sources.
 package datasources
 
 import (
 	"context"
-	"fmt"
 	"slices"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -100,16 +98,9 @@ func (d *configDataSource) Schema(_ context.Context, _ datasource.SchemaRequest,
 }
 
 func (d *configDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, resp *datasource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
+	if c := restClient(req, resp); c != nil {
+		d.client = c
 	}
-	c, ok := req.ProviderData.(*client.HAClient)
-	if !ok {
-		resp.Diagnostics.AddError("Unexpected provider data",
-			fmt.Sprintf("Expected *client.HAClient, got %T. This is a bug in the provider.", req.ProviderData))
-		return
-	}
-	d.client = c.REST
 }
 
 func (d *configDataSource) Read(ctx context.Context, _ datasource.ReadRequest, resp *datasource.ReadResponse) {

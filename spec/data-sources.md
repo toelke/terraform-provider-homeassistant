@@ -21,7 +21,7 @@ Read-only lookups of live HA data. They use REST only, so they never open a WebS
 
 | Argument | Type | |
 |---|---|---|
-| `entity_id` | string | required |
+| `entity_id` | string | required; validated at plan time as `<domain>.<object_id>` (lowercase letters, digits, `_`) |
 
 | Computed | Type | Source |
 |---|---|---|
@@ -31,6 +31,9 @@ Read-only lookups of live HA data. They use REST only, so they never open a WebS
 | `unit_of_measurement` | string | `attributes.unit_of_measurement` |
 | `attributes` | dynamic | all attributes, keeping JSON types (ADR-0015) |
 | `last_changed`, `last_updated` | string | ISO 8601 |
+
+`friendly_name`, `device_class`, and `unit_of_measurement` are null when the attribute is
+missing or not a string.
 
 ## `homeassistant_entities`
 
@@ -69,7 +72,8 @@ There is no `state` filter (ADR-0015).
 
 `POST /api/template` with `{"template": "..."}`. It returns the rendered text in `result`. The
 HTTP status is checked, and so is a 200 body starting with `Error rendering template`. Either
-becomes an error diagnostic.
+becomes an error diagnostic. HA answers a broken template with HTTP 400, so a 400 or such a 200
+body is reported on `template`; any other failure is reported like every other REST error.
 
 ```hcl
 data "homeassistant_template" "areas" {
