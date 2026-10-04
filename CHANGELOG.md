@@ -18,6 +18,8 @@ breaking changes may land in minor versions and are marked **Breaking** (ADR-001
 - Resource `homeassistant_area`, with import.
 - Resource `homeassistant_script`, with import. `config` takes the script as an object, e.g. from
   `yamldecode(file(...))`; `entity_id` is `script.<id>`.
+- Resource `homeassistant_scene`, with import. `config` takes the scene as an object, e.g. from
+  `yamldecode(file(...))`.
 
 ## 0.0.1
 

@@ -148,3 +148,33 @@ func TestScriptsFindEntityByEntityID(t *testing.T) {
 		t.Errorf("polled %d times, want 2", n)
 	}
 }
+
+func TestScenesSaveAddsIDAndFindEntityByAttribute(t *testing.T) {
+	c := serve(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/config/scene/config/movie":
+			b, _ := io.ReadAll(r.Body)
+			if string(b) != `{"id":"movie","name":"Movie"}` {
+				t.Errorf("body = %s", b)
+			}
+			_, _ = w.Write([]byte(`{"result":"ok"}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/states":
+			// An automation with the same id, and the scene, whose entity ID comes from its name.
+			_, _ = w.Write([]byte(`[{"entity_id":"automation.movie","attributes":{"id":"movie"}},
+				{"entity_id":"scene.movie_night","attributes":{"id":"movie"}}]`))
+		default:
+			t.Errorf("%s %s", r.Method, r.URL.Path)
+		}
+	})
+	scenes := NewScenes(c)
+	if err := scenes.Save(t.Context(), "movie", json.RawMessage(`{"name":"Movie"}`)); err != nil {
+		t.Fatal(err)
+	}
+	got, err := scenes.FindEntity(t.Context(), "movie", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "scene.movie_night" {
+		t.Errorf("entity = %q", got)
+	}
+}
