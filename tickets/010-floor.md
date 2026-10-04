@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 depends_on: [009]
 adrs: [0009]
 spec: [registries.md]
@@ -8,5 +8,5 @@ spec: [registries.md]
 # homeassistant_floor
 
 ## Acceptance criteria
-- [ ] CRUD and import, reusing the generated-ID machinery from 009.
-- [ ] `aliases` is a set.
+- [x] CRUD and import, reusing the generated-ID machinery from 009.
+- [x] `aliases` is a set.
