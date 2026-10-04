@@ -44,29 +44,38 @@ data "homeassistant_entities" "bedroom_lights" {
 }
 ```
 
+Every filter is optional, and an entity must match all that are set.
+
 | Argument | Type | Notes |
 |---|---|---|
-| `domain` | string | entity ID prefix |
-| `area` | string | area ID or name, resolved through `area_entities()` |
-| `label` | string | label ID or name, resolved through `label_entities()` |
-| `device_class` | string | matches `attributes.device_class` |
-| `name_pattern` | string | glob against `friendly_name` |
+| `domain` | string | the part of the entity ID before the dot |
+| `area` | string | area ID or name, resolved through `area_entities()`; an unknown area matches nothing |
+| `label` | string | label ID or name, resolved through `label_entities()`; an unknown label matches nothing |
+| `device_class` | string | equals `attributes.device_class` |
+| `name_pattern` | string | glob against `friendly_name`: `*` is any characters, `?` one character, everything else is literal and case-sensitive. Entities without a `friendly_name` never match |
 
 There is no `state` filter (ADR-0015).
 
 | Computed | Type |
 |---|---|
 | `entity_ids` | list(string), sorted |
-| `entities` | map(object `{ state, friendly_name, attributes (dynamic), last_changed }`) keyed by entity ID |
+| `entities` | dynamic: an object keyed by entity ID, each value `{ state, friendly_name, attributes, last_changed }` |
+
+`entities` is dynamic rather than `map(object)`, because terraform-plugin-framework does not
+allow a dynamic value (`attributes`, ADR-0015) inside a map. HCL reads it the same way:
+`entities["light.x"].state`, and `for` expressions work on it. `friendly_name` is null when the
+entity has none.
 
 **Algorithm:**
 
 1. `GET /api/states`.
-2. If `area` or `label` is set, render `{{ area_entities('<x>') | tojson }}` or
-   `{{ label_entities('<x>') | tojson }}` through the template API, JSON-decode the result, and
-   intersect it with the states. Quote the value safely inside the template.
+2. If `area` or `label` is set, render `{{ area_entities("<x>") | tojson }}` or
+   `{{ label_entities("<x>") | tojson }}` through the template API, JSON-decode the result, and
+   intersect it with the states. The value is written as a Jinja string literal in which
+   `"`, `\`, and every character outside printable ASCII become a `\uXXXX` or `\UXXXXXXXX`
+   escape, so it can't end the literal.
 3. Apply the remaining filters.
-4. Sort the result.
+4. Sort the result by entity ID.
 
 ## `homeassistant_template`
 
