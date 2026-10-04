@@ -39,8 +39,9 @@ Do this before taking a new ticket. For each open PR (`gh pr list`), oldest firs
 6. **Merge** when `scripts/lgtm-check.sh <pr>` passes: `gh pr merge <pr> --merge`. GitHub deletes
    the branch itself and retargets PRs stacked on it, so don't delete it yourself.
    The check passes once toelke has commented a bare "LGTM", nothing but rebases has changed
-   since (resolving `CHANGELOG.md` conflicts counts as a rebase), and all checks are green. Agents post as toelke too, so your own comments always carry
-   the Claude Code footer and are never just "LGTM".
+   since (resolving `CHANGELOG.md` conflicts counts as a rebase), and all checks are green.
+   Agents post as toelke too, so your own comments always carry the Claude Code footer and are
+   never just "LGTM".
 
 ## Taking the next ticket
 
