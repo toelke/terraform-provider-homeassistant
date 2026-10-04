@@ -10,11 +10,10 @@ resource "homeassistant_dashboard" "home" {
         provider::homeassistant::grid_section([
           provider::homeassistant::tile_card("light.kitchen"),
           { type = "button", entity = "script.good_morning" },
-        ], "Kitchen"),
+        ], { heading = "Kitchen" }),
         # No heading, and a section option.
         provider::homeassistant::grid_section(
           [provider::homeassistant::tile_card("lock.front_door")],
-          "",
           { column_span = 2 },
         ),
       ]

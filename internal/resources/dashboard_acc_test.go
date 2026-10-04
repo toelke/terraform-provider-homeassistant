@@ -291,9 +291,9 @@ resource "homeassistant_dashboard" "test" {
           provider::homeassistant::tile_card("sun.sun", { name = "Sun", icon = null }),
           provider::homeassistant::entities_card(["sun.sun", { entity = "sun.sun", name = "Sun" }]),
           { type = "button", entity = "sun.sun" },
-        ], "Sky"),
+        ], { heading = "Sky" }),
         provider::homeassistant::grid_section(
-          [provider::homeassistant::heading_card("Alone")], "", { column_span = 2 },
+          [provider::homeassistant::heading_card("Alone")], { column_span = 2 },
         ),
       ]
     }]

@@ -14,16 +14,17 @@ import (
 	"github.com/toelke/terraform-provider-homeassistant/internal/dyntype"
 )
 
-// builder is a builder function. Its result is the object returned by build, with the
-// optional trailing options object merged in.
+// builder is a builder function. Its result is the object returned by build, with the keys of
+// the optional trailing options object merged in that build left in place.
 type builder struct {
 	name        string
 	summary     string
 	description string
 	params      []function.Parameter
 	// build turns the arguments, as decoded JSON trees, into the result object, or reports an
-	// invalid argument.
-	build func(args []any) (map[string]any, *function.FuncError)
+	// invalid argument. options holds the options object without its null keys; build deletes
+	// the keys it handles itself, and the rest are merged into the result.
+	build func(args []any, options map[string]any) (map[string]any, *function.FuncError)
 }
 
 var _ function.Function = builder{}
@@ -70,12 +71,17 @@ func (b builder) Run(ctx context.Context, req function.RunRequest, resp *functio
 		args[i] = g
 	}
 
-	result, funcErr := b.build(args[:len(b.params)])
+	options, funcErr := decodeOptions(args[len(b.params)], len(b.params))
 	if funcErr != nil {
 		resp.Error = funcErr
 		return
 	}
-	if resp.Error = mergeOptions(result, args[len(b.params)], len(b.params)); resp.Error != nil {
+	result, funcErr := b.build(args[:len(b.params)], options)
+	if funcErr != nil {
+		resp.Error = funcErr
+		return
+	}
+	if resp.Error = mergeOptions(result, options, len(b.params)); resp.Error != nil {
 		return
 	}
 
@@ -87,29 +93,39 @@ func (b builder) Run(ctx context.Context, req function.RunRequest, resp *functio
 	resp.Error = resp.Result.Set(ctx, types.DynamicValue(av))
 }
 
-// mergeOptions sets the keys of the options object on result. variadic is the decoded variadic
-// argument list, and position is the position of its first element.
-func mergeOptions(result map[string]any, variadic any, position int) *function.FuncError {
+// decodeOptions returns the options object without its null keys, or an empty map if there is
+// none. variadic is the decoded variadic argument list, and position is the position of its
+// first element.
+func decodeOptions(variadic any, position int) (map[string]any, *function.FuncError) {
 	list, _ := variadic.([]any)
 	if len(list) > 1 {
-		return function.NewArgumentFuncError(int64(position+1), "at most one options object is allowed")
+		return nil, function.NewArgumentFuncError(int64(position+1), "at most one options object is allowed")
 	}
+	options := map[string]any{}
 	if len(list) == 0 {
-		return nil
+		return options, nil
 	}
-	options, ok := list[0].(map[string]any)
+	given, ok := list[0].(map[string]any)
 	if !ok {
-		return function.NewArgumentFuncError(int64(position), "options must be an object")
+		return nil, function.NewArgumentFuncError(int64(position), "options must be an object")
 	}
+	for k, v := range given {
+		if v != nil {
+			options[k] = v
+		}
+	}
+	return options, nil
+}
+
+// mergeOptions sets the keys of options on result. position is the position of the options
+// argument.
+func mergeOptions(result, options map[string]any, position int) *function.FuncError {
 	keys := make([]string, 0, len(options))
 	for k := range options {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		if options[k] == nil {
-			continue
-		}
 		if _, set := result[k]; set {
 			return function.NewArgumentFuncError(int64(position),
 				fmt.Sprintf("options must not set %q: another argument already sets it", k))

@@ -16,7 +16,7 @@ func NewTileCard() function.Function {
 		params: []function.Parameter{
 			function.StringParameter{Name: "entity", MarkdownDescription: "Entity ID, e.g. `light.kitchen`."},
 		},
-		build: func(args []any) (map[string]any, *function.FuncError) {
+		build: func(args []any, _ map[string]any) (map[string]any, *function.FuncError) {
 			return map[string]any{"type": "tile", "entity": args[0]}, nil
 		},
 	}
@@ -36,7 +36,7 @@ func NewEntitiesCard() function.Function {
 					"`{ entity = \"light.kitchen\", name = \"Ceiling\" }`.",
 			},
 		},
-		build: func(args []any) (map[string]any, *function.FuncError) {
+		build: func(args []any, _ map[string]any) (map[string]any, *function.FuncError) {
 			rows, ok := args[0].([]any)
 			if !ok {
 				return nil, function.NewArgumentFuncError(0, "entities must be a list")
@@ -64,7 +64,7 @@ func NewHeadingCard() function.Function {
 		params: []function.Parameter{
 			function.StringParameter{Name: "heading", MarkdownDescription: "Heading text."},
 		},
-		build: func(args []any) (map[string]any, *function.FuncError) {
+		build: func(args []any, _ map[string]any) (map[string]any, *function.FuncError) {
 			return map[string]any{"type": "heading", "heading": args[0]}, nil
 		},
 	}
@@ -76,17 +76,12 @@ func NewGridSection() function.Function {
 		name:    "grid_section",
 		summary: "Builds a grid section",
 		description: "Returns a `grid` section of a `sections` view, for use in a dashboard " +
-			"`config`. A non-empty `heading` becomes a heading card in front of `cards`. Further " +
-			"section options, e.g. `column_span`, go in `options`.",
+			"`config`. A `heading` in `options` becomes a heading card in front of `cards`. Further " +
+			"section options, e.g. `column_span`, go in `options` too.",
 		params: []function.Parameter{
 			function.DynamicParameter{Name: "cards", MarkdownDescription: "List of card objects."},
-			// Not nullable: OpenTofu 1.11 fails to pass a null argument to a provider function.
-			function.StringParameter{
-				Name:                "heading",
-				MarkdownDescription: "Heading text, or `\"\"` for a section without a heading.",
-			},
 		},
-		build: func(args []any) (map[string]any, *function.FuncError) {
+		build: func(args []any, options map[string]any) (map[string]any, *function.FuncError) {
 			cards, ok := args[0].([]any)
 			if !ok {
 				return nil, function.NewArgumentFuncError(0, "cards must be a list of objects")
@@ -96,7 +91,12 @@ func NewGridSection() function.Function {
 					return nil, function.NewArgumentFuncError(0, fmt.Sprintf("cards[%d] must be an object", i))
 				}
 			}
-			if heading := args[1].(string); heading != "" {
+			if h, set := options["heading"]; set {
+				heading, ok := h.(string)
+				if !ok {
+					return nil, function.NewArgumentFuncError(1, "options.heading must be a string")
+				}
+				delete(options, "heading")
 				cards = append([]any{map[string]any{"type": "heading", "heading": heading}}, cards...)
 			}
 			return map[string]any{"type": "grid", "cards": cards}, nil

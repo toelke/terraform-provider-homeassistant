@@ -78,12 +78,11 @@ func TestGolden(t *testing.T) {
 		{"grid_section", NewGridSection(), func(t *testing.T) []attr.Value {
 			return []attr.Value{
 				dyn(t, `[{"type":"tile","entity":"light.kitchen"},{"type":"button","entity":"script.good_morning"}]`),
-				types.StringValue("Kitchen"),
-				options(t, `{"column_span":2}`),
+				options(t, `{"heading":"Kitchen","column_span":2}`),
 			}
 		}},
 		{"grid_section_no_heading", NewGridSection(), func(t *testing.T) []attr.Value {
-			return []attr.Value{dyn(t, `[{"type":"tile","entity":"lock.front_door"}]`), types.StringValue(""), options(t)}
+			return []attr.Value{dyn(t, `[{"type":"tile","entity":"lock.front_door"}]`), options(t, `{"heading":null}`)}
 		}},
 	}
 	for _, tt := range tests {
@@ -146,11 +145,14 @@ func TestInvalidArguments(t *testing.T) {
 			return []attr.Value{dyn(t, `["light.kitchen",5]`), options(t)}
 		}, 0, "entities[1] must be an entity ID or an object"},
 		{"cards not a list", NewGridSection(), func(t *testing.T) []attr.Value {
-			return []attr.Value{dyn(t, `{"type":"tile"}`), types.StringValue(""), options(t)}
+			return []attr.Value{dyn(t, `{"type":"tile"}`), options(t)}
 		}, 0, "cards must be a list of objects"},
 		{"card not an object", NewGridSection(), func(t *testing.T) []attr.Value {
-			return []attr.Value{dyn(t, `[{"type":"tile"},"light.kitchen"]`), types.StringValue(""), options(t)}
+			return []attr.Value{dyn(t, `[{"type":"tile"},"light.kitchen"]`), options(t)}
 		}, 0, "cards[1] must be an object"},
+		{"heading not a string", NewGridSection(), func(t *testing.T) []attr.Value {
+			return []attr.Value{dyn(t, `[]`), options(t, `{"heading":["Kitchen"]}`)}
+		}, 1, "options.heading must be a string"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
