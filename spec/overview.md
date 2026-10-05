@@ -104,7 +104,10 @@ Generated IDs follow ADR-0009 (collision check, optional `id` via create-then-re
 User-chosen IDs follow ADR-0008 (`^[a-z0-9_]+$`, change forces replacement).
 
 **Dynamic config.** Attributes named `config` are dynamic, use the semantic-equality custom type
-(ADR-0006), and are passed to HA unchanged (ADR-0005).
+(ADR-0006), and are passed to HA unchanged (ADR-0005). HA may rewrite a config when it saves it,
+for example renaming old automation keys. So after each create and update, the provider records a
+hash of what HA stored (the **stored baseline**, in private state), and on refresh a read-back
+equal to the baseline is never drift (ADR-0023).
 
 **Errors.**
 

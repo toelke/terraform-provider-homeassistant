@@ -1,7 +1,8 @@
 # Automations, scripts, scenes
 
 These use REST config endpoints. Each resource has a user-chosen `id` (ADR-0008) and one dynamic
-`config` (ADR-0005), compared by semantic equality (ADR-0006).
+`config` (ADR-0005), compared against the stored baseline (ADR-0023) and by semantic equality
+(ADR-0006).
 
 ## Common behaviour
 
@@ -15,6 +16,13 @@ These use REST config endpoints. Each resource has a user-chosen `id` (ADR-0008)
 - HA reloads asynchronously after a write. Create then polls `GET /api/states` until the entity
   appears, which sets `entity_id`. If it has not appeared after a minute, the apply fails and the
   resource is tainted. Update does not wait: the entity ID never changes once the entity exists.
+- After a create or update, the provider reads the config back and stores a hash of it as the
+  stored baseline in private state. On Read, a config equal to the baseline keeps the prior
+  state value. Otherwise it is compared by semantic equality, and a real difference is drift.
+  Without a baseline (state from v0.1.0, or after import), only semantic equality applies.
+- HA renames old keys when it saves (`trigger`, `condition`, `action` at the top level become
+  plurals, and `service` becomes `action` in action steps, also in scripts). The baseline keeps
+  this from showing as a diff. The docs mention it, and there is no warning.
 - A 400 response carries HA's validation message, which becomes the diagnostic.
 - `config` must be an object and must not contain an `id` key (checked at plan time); the
   provider owns it. YAML copied from the HA UI needs its `id:` line removed. On Read, the
