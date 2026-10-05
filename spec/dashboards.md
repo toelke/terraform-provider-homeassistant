@@ -54,7 +54,7 @@ resource "homeassistant_dashboard" "wall_tablet" {
 | `icon` | string | optional |
 | `show_in_sidebar` | bool | default `true` |
 | `require_admin` | bool | default `false` |
-| `config` | dynamic (semantic equality) | required; the full Lovelace config (`views`, …) |
+| `config` | dynamic (stored baseline, ADR-0023; semantic equality) | required; the full Lovelace config (`views`, …) |
 
 | Computed | |
 |---|---|
