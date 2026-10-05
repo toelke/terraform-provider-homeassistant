@@ -37,3 +37,17 @@ data "homeassistant_entities" "hall_lamp" {
 output "hall_lamp_id" {
   value = one(data.homeassistant_entities.hall_lamp.entity_ids)
 }
+
+# The entities of one device. `device_id` takes only an ID; look the device up by name with
+# `homeassistant_device`, which fails if the name is ambiguous.
+data "homeassistant_device" "desk_lamp" {
+  name = "Desk Lamp"
+}
+
+data "homeassistant_entities" "desk_lamp" {
+  device_id = data.homeassistant_device.desk_lamp.device_id
+}
+
+output "desk_lamp_entity_ids" {
+  value = data.homeassistant_entities.desk_lamp.entity_ids
+}

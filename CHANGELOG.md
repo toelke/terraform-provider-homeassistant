@@ -7,6 +7,8 @@ breaking changes may land in minor versions and are marked **Breaking** (ADR-001
 
 - Data source `homeassistant_entities`: new `hidden` filter, and a `hidden` flag on each entry of
   `entities`, so lookups can skip hidden duplicates (#30).
+- `data.homeassistant_entities`: new `device_id` filter, for telling apart entities with the same
+  friendly name on different devices (#30).
 - `examples/demo/`: a demo against a fresh Home Assistant in Docker (one automation template
   for every area, automations from YAML files, drift, dashboards per area), recorded in
   `docs/demo.cast`.

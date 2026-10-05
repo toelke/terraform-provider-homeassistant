@@ -2,9 +2,11 @@ package datasources_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"testing"
 	"time"
 
@@ -287,4 +289,126 @@ func checkEntityIDs(name string, ids ...string) resource.TestCheckFunc {
 		checks = append(checks, resource.TestCheckResourceAttr(address, fmt.Sprintf("entity_ids.%d", i), id))
 	}
 	return resource.ComposeAggregateTestCheckFunc(checks...)
+}
+
+// setUpTwinDevices starts an MQTT broker, sets up the MQTT integration, and announces two devices
+// through MQTT discovery. Both are named "Acc Twin" and have one sensor named "Temperature", so
+// the sensors share the friendly name "Acc Twin Temperature". It returns the device IDs and the
+// IDs of their sensors.
+func setUpTwinDevices(t *testing.T) (deviceIDs, entityIDs [2]string) {
+	t.Helper()
+	ha := acctest.SharedInstance(t)
+	acctest.StartMosquitto(t)
+	u, err := url.Parse(ha.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := client.New(client.Config{URL: u, Token: ha.Token, Timeout: 30 * time.Second})
+	ctx := context.Background()
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	entryID, err := client.NewConfigFlows(c.REST).RunAnswer(ctx, "mqtt", "", client.FieldAnswer(c.REST, map[string]any{
+		"broker": "localhost", "set_ca_cert": "off", "set_client_cert": false,
+	}, nil))
+	must(err)
+	t.Cleanup(func() { _ = client.NewConfigEntries(c.WS, c.REST).Delete(context.Background(), entryID) })
+
+	devices := client.Devices(c.WS)
+	registry := client.Entities(c.WS)
+	for i, id := range []string{"acc_twin_one", "acc_twin_two"} {
+		topic := "homeassistant/sensor/" + id + "/config"
+		config, err := json.Marshal(map[string]any{
+			"name": "Temperature", "unique_id": id + "_temperature", "state_topic": id + "/temperature",
+			"device_class": "temperature", "unit_of_measurement": "°C",
+			"device": map[string]any{"identifiers": []string{id}, "name": "Acc Twin"},
+		})
+		must(err)
+		t.Cleanup(func() {
+			_ = c.REST.Do(context.Background(), http.MethodPost, "services/mqtt/publish",
+				map[string]any{"topic": topic, "payload": "", "retain": true}, nil)
+		})
+
+		// The broker connection comes up shortly after the entry is set up, so the discovery
+		// message is published until the device and its sensor appear.
+		for deadline := time.Now().Add(30 * time.Second); entityIDs[i] == ""; time.Sleep(500 * time.Millisecond) {
+			if time.Now().After(deadline) {
+				t.Fatalf("MQTT device %s did not appear", id)
+			}
+			_ = c.REST.Do(ctx, http.MethodPost, "services/mqtt/publish",
+				map[string]any{"topic": topic, "payload": string(config), "retain": true}, nil)
+			list, err := devices.List(ctx)
+			must(err)
+			for _, d := range list {
+				if slices.ContainsFunc(d.Identifiers, func(ident []string) bool { return slices.Equal(ident, []string{"mqtt", id}) }) {
+					deviceIDs[i] = d.ID
+				}
+			}
+			if deviceIDs[i] == "" {
+				continue
+			}
+			ents, err := registry.List(ctx)
+			must(err)
+			for _, e := range ents {
+				if e.DeviceID != nil && *e.DeviceID == deviceIDs[i] {
+					entityIDs[i] = e.EntityID
+				}
+			}
+		}
+	}
+
+	return deviceIDs, entityIDs
+}
+
+func TestAccEntitiesDataSource_DeviceID(t *testing.T) {
+	deviceIDs, entityIDs := setUpTwinDevices(t)
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
+data "homeassistant_entities" "by_name" {
+  name_pattern = "Acc Twin Temperature"
+}
+
+data "homeassistant_entities" "first" {
+  name_pattern = "Acc Twin Temperature"
+  device_id    = %[1]q
+}
+
+data "homeassistant_entities" "second" {
+  device_id = %[2]q
+}
+
+data "homeassistant_entities" "unknown_device" {
+  device_id = "acc_no_such_device"
+}
+
+output "same_name" {
+  value = (data.homeassistant_entities.by_name.entities[%[3]q].friendly_name ==
+    data.homeassistant_entities.by_name.entities[%[4]q].friendly_name)
+}
+`, deviceIDs[0], deviceIDs[1], entityIDs[0], entityIDs[1]),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					checkEntityIDs("by_name", sortedPair(entityIDs)...),
+					resource.TestCheckOutput("same_name", "true"),
+					checkEntityIDs("first", entityIDs[0]),
+					checkEntityIDs("second", entityIDs[1]),
+					checkEntityIDs("unknown_device"),
+				),
+			},
+		},
+	})
+}
+
+// sortedPair returns ids in ascending order.
+func sortedPair(ids [2]string) []string {
+	s := ids[:]
+	slices.Sort(s)
+	return s
 }

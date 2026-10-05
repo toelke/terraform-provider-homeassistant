@@ -42,6 +42,7 @@ type entitiesModel struct {
 	DeviceClass types.String  `tfsdk:"device_class"`
 	NamePattern types.String  `tfsdk:"name_pattern"`
 	Hidden      types.Bool    `tfsdk:"hidden"`
+	DeviceID    types.String  `tfsdk:"device_id"`
 	EntityIDs   types.List    `tfsdk:"entity_ids"`
 	Entities    types.Dynamic `tfsdk:"entities"`
 }
@@ -78,6 +79,11 @@ func (d *entitiesDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 				Description: "Only entities whose `friendly_name` matches this glob pattern: `*` matches " +
 					"any characters, `?` matches one character, and everything else matches itself, " +
 					"case-sensitively. Entities without a `friendly_name` never match.",
+				Optional: true,
+			},
+			"device_id": schema.StringAttribute{
+				Description: "Only entities of this device, given by device ID. An unknown device matches " +
+					"no entities. To look up a device by name, use `data.homeassistant_device`.",
 				Optional: true,
 			},
 			"hidden": schema.BoolAttribute{
@@ -137,6 +143,7 @@ func (d *entitiesDataSource) Read(ctx context.Context, req datasource.ReadReques
 	}{
 		{"area", cfg.Area, "area_entities", &f.area},
 		{"label", cfg.Label, "label_entities", &f.label},
+		{"device_id", cfg.DeviceID, "device_entities", &f.device},
 	} {
 		if m.value.IsNull() {
 			continue
@@ -210,8 +217,8 @@ type entityFilter struct {
 	domain      string
 	deviceClass string
 	name        *regexp.Regexp
-	// area and label are the entity IDs in the area and with the label.
-	area, label map[string]bool
+	// area, label, and device are the entity IDs in the area, with the label, and of the device.
+	area, label, device map[string]bool
 	// hidden, if set, is whether the entity must be in hiddenIDs, the IDs of hidden entities.
 	hidden    *bool
 	hiddenIDs map[string]bool
@@ -240,6 +247,9 @@ func (f entityFilter) matches(s client.EntityState) bool {
 		return false
 	}
 	if f.hidden != nil && f.hiddenIDs[s.EntityID] != *f.hidden {
+		return false
+	}
+	if f.device != nil && !f.device[s.EntityID] {
 		return false
 	}
 	if f.deviceClass == "" && f.name == nil {
