@@ -1,6 +1,7 @@
 ---
 status: done
 depends_on: [008, 012]
+issues: [30]
 adrs: [0022]
 spec: [data-sources.md]
 ---

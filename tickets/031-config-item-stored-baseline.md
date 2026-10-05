@@ -1,6 +1,7 @@
 ---
 status: done
 depends_on: [016, 017, 018]
+issues: [36]
 adrs: [0023, 0006]
 spec: [automations.md, overview.md]
 ---
