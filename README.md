@@ -4,21 +4,40 @@ An OpenTofu (and Terraform) provider for managing a [Home Assistant](https://www
 instance as code: floors, areas, labels, entity and device settings, automations, scripts,
 scenes, helpers, dashboards, and integrations.
 
-> **Status:** early development. Pre-releases (`v0.0.x`) contain only what is already done; see
-> [`CHANGELOG.md`](CHANGELOG.md) for what is in each, and [`tickets/`](tickets/) for the plan.
+## Features
 
-## Stability
+- **Registries:** floors, areas, and labels (`homeassistant_floor`, `homeassistant_area`,
+  `homeassistant_label`).
+- **Entities and devices an integration owns:** name, icon, area, labels, hidden and disabled,
+  managed field by field (`homeassistant_entity_settings`, `homeassistant_device_settings`).
+- **Automations, scripts and scenes** (`homeassistant_automation`, `homeassistant_script`,
+  `homeassistant_scene`), taking their config as an object, e.g. from `yamldecode(file(...))`.
+- **Helpers:** `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`
+  and `input_button`, validated at plan time.
+- **Dashboards** (`homeassistant_dashboard`).
+- **Integrations:** any config entry by answering its config flow
+  (`homeassistant_integration`), plus typed resources for ESPHome and MQTT
+  (`homeassistant_esphome`, `homeassistant_mqtt`).
+- **Data sources** to look things up: entities, devices, areas, integrations, the instance config,
+  and rendered templates.
+- **Provider functions** that build dashboard cards and sections, and automation triggers,
+  conditions and actions.
+- Every resource supports `tofu import`.
 
-Until v1.0, the provider is not stable. Any minor release (`0.x`) may contain breaking changes to
-resources, attributes or state, and `0.0.x` pre-releases may break in any release. Every breaking
-change is listed under **Breaking** in [`CHANGELOG.md`](CHANGELOG.md). Pin an exact version
-(`version = "= 0.0.1"`) and read the changelog before you upgrade.
+The [documentation](docs/) covers every resource, data source and function, with examples;
+[`CHANGELOG.md`](CHANGELOG.md) lists what changed in each release.
+
+## Installation
+
+The provider is published on the OpenTofu and the Terraform registry as `toelke/homeassistant`.
+Create a long-lived access token in Home Assistant (your profile, "Security" tab), then:
 
 ```hcl
 terraform {
   required_providers {
     homeassistant = {
-      source = "toelke/homeassistant"
+      source  = "toelke/homeassistant"
+      version = "= 0.1.0"
     }
   }
 }
@@ -28,6 +47,15 @@ provider "homeassistant" {
   token = var.ha_token # long-lived access token
 }
 ```
+
+`url` and `token` can also come from `HOMEASSISTANT_URL` and `HOMEASSISTANT_TOKEN`.
+
+## Stability
+
+Until v1.0, the provider is not stable. Any minor release (`0.x`) may contain breaking changes to
+resources, attributes or state. Every breaking change is listed under **Breaking** in
+[`CHANGELOG.md`](CHANGELOG.md). Pin an exact version (`version = "= 0.1.0"`) and read the
+changelog before you upgrade.
 
 ## Development
 
