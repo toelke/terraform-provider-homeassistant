@@ -41,6 +41,7 @@ type entitiesModel struct {
 	Label       types.String  `tfsdk:"label"`
 	DeviceClass types.String  `tfsdk:"device_class"`
 	NamePattern types.String  `tfsdk:"name_pattern"`
+	Hidden      types.Bool    `tfsdk:"hidden"`
 	EntityIDs   types.List    `tfsdk:"entity_ids"`
 	Entities    types.Dynamic `tfsdk:"entities"`
 }
@@ -79,6 +80,14 @@ func (d *entitiesDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 					"case-sensitively. Entities without a `friendly_name` never match.",
 				Optional: true,
 			},
+			"hidden": schema.BoolAttribute{
+				Description: "`false` gives only entities that aren't hidden, `true` only hidden ones; " +
+					"unset applies no filter. An entity is hidden when its registry entry has " +
+					"`hidden_by` set, by the user or by an integration. Entities without a registry " +
+					"entry are never hidden. There is no filter on disabled entities: HA removes them " +
+					"from the states.",
+				Optional: true,
+			},
 			"entity_ids": schema.ListAttribute{
 				Description: "IDs of the matching entities, sorted.",
 				ElementType: types.StringType,
@@ -87,7 +96,7 @@ func (d *entitiesDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 			"entities": schema.DynamicAttribute{
 				Description: "The matching entities, as an object keyed by entity ID. Each value has " +
 					"`state`, `friendly_name` (null if the entity has none), `attributes` (keeping " +
-					"their JSON types), and `last_changed`.",
+					"their JSON types), `last_changed`, and `hidden`.",
 				Computed: true,
 			},
 		},
@@ -142,13 +151,23 @@ func (d *entitiesDataSource) Read(ctx context.Context, req datasource.ReadReques
 		*m.target = ids
 	}
 
+	f.hiddenIDs, err = d.hiddenEntityIDs(ctx)
+	if err != nil {
+		resp.Diagnostics.AddError("Finding the hidden entities", client.ErrorDetail(err))
+		return
+	}
+	if !cfg.Hidden.IsNull() {
+		hidden := cfg.Hidden.ValueBool()
+		f.hidden = &hidden
+	}
+
 	matched := f.apply(states)
 	ids := make([]attr.Value, len(matched))
 	for i, s := range matched {
 		ids[i] = types.StringValue(s.EntityID)
 	}
 	cfg.EntityIDs = types.ListValueMust(types.StringType, ids)
-	cfg.Entities, err = entitiesValue(matched)
+	cfg.Entities, err = entitiesValue(matched, f.hiddenIDs)
 	if err != nil {
 		resp.Diagnostics.AddError("Decoding entity attributes", err.Error())
 		return
@@ -159,7 +178,19 @@ func (d *entitiesDataSource) Read(ctx context.Context, req datasource.ReadReques
 // entityIDsOf renders `<function>(<value>)`, e.g. area_entities, through the template API and
 // returns the entity IDs as a set.
 func (d *entitiesDataSource) entityIDsOf(ctx context.Context, function, value string) (map[string]bool, error) {
-	result, err := d.client.RenderTemplate(ctx, fmt.Sprintf("{{ %s(%s) | tojson }}", function, jinjaString(value)))
+	return d.renderIDs(ctx, function, fmt.Sprintf("{{ %s(%s) | tojson }}", function, jinjaString(value)))
+}
+
+// hiddenEntityIDs returns the IDs of every hidden entity as a set, through is_hidden_entity.
+func (d *entitiesDataSource) hiddenEntityIDs(ctx context.Context) (map[string]bool, error) {
+	return d.renderIDs(ctx, "is_hidden_entity",
+		`{{ states | map(attribute="entity_id") | select("is_hidden_entity") | list | tojson }}`)
+}
+
+// renderIDs renders template, which yields a JSON list of entity IDs, and returns them as a set.
+// function names the template function in errors.
+func (d *entitiesDataSource) renderIDs(ctx context.Context, function, template string) (map[string]bool, error) {
+	result, err := d.client.RenderTemplate(ctx, template)
 	if err != nil {
 		return nil, err
 	}
@@ -181,6 +212,9 @@ type entityFilter struct {
 	name        *regexp.Regexp
 	// area and label are the entity IDs in the area and with the label.
 	area, label map[string]bool
+	// hidden, if set, is whether the entity must be in hiddenIDs, the IDs of hidden entities.
+	hidden    *bool
+	hiddenIDs map[string]bool
 }
 
 // apply returns the states that pass every filter, sorted by entity ID.
@@ -203,6 +237,9 @@ func (f entityFilter) matches(s client.EntityState) bool {
 		return false
 	}
 	if f.label != nil && !f.label[s.EntityID] {
+		return false
+	}
+	if f.hidden != nil && f.hiddenIDs[s.EntityID] != *f.hidden {
 		return false
 	}
 	if f.deviceClass == "" && f.name == nil {
@@ -267,8 +304,9 @@ func jinjaString(s string) string {
 	return b.String()
 }
 
-// entitiesValue returns the `entities` attribute: an object keyed by entity ID.
-func entitiesValue(states []client.EntityState) (types.Dynamic, error) {
+// entitiesValue returns the `entities` attribute: an object keyed by entity ID. hidden holds the
+// IDs of the hidden entities.
+func entitiesValue(states []client.EntityState, hidden map[string]bool) (types.Dynamic, error) {
 	typs := make(map[string]attr.Type, len(states))
 	values := make(map[string]attr.Value, len(states))
 	for _, s := range states {
@@ -290,12 +328,14 @@ func entitiesValue(states []client.EntityState) (types.Dynamic, error) {
 			"friendly_name": types.StringType,
 			"attributes":    a.Type(context.Background()),
 			"last_changed":  types.StringType,
+			"hidden":        types.BoolType,
 		}
 		v, diags := types.ObjectValue(attrTypes, map[string]attr.Value{
 			"state":         types.StringValue(s.State),
 			"friendly_name": stringAttribute(flat, "friendly_name"),
 			"attributes":    a,
 			"last_changed":  types.StringValue(s.LastChanged),
+			"hidden":        types.BoolValue(hidden[s.EntityID]),
 		})
 		if diags.HasError() {
 			return types.Dynamic{}, fmt.Errorf("entity %s: %v", s.EntityID, diags)

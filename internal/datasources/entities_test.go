@@ -50,6 +50,18 @@ func TestEntityFilter(t *testing.T) {
 		},
 		"name pattern":            {entityFilter{name: globRegexp("*Temp")}, []string{"sensor.hall_temp", "sensor.kitchen_temp"}},
 		"name pattern needs name": {entityFilter{name: globRegexp("*")}, []string{"light.hall", "light.kitchen", "sensor.hall_temp", "sensor.kitchen_temp"}},
+		"not hidden": {
+			entityFilter{hidden: new(false), hiddenIDs: map[string]bool{"light.hall": true, "sensor.nameless": true}},
+			[]string{"light.kitchen", "lightning.strike", "sensor.hall_temp", "sensor.kitchen_temp"},
+		},
+		"hidden": {
+			entityFilter{hidden: new(true), hiddenIDs: map[string]bool{"light.hall": true, "sensor.nameless": true}},
+			[]string{"light.hall", "sensor.nameless"},
+		},
+		"hidden unset": {
+			entityFilter{domain: "light", hiddenIDs: map[string]bool{"light.hall": true}},
+			[]string{"light.hall", "light.kitchen"},
+		},
 		"all combined": {
 			entityFilter{
 				domain:      "sensor",
@@ -137,11 +149,26 @@ func TestEntityIDsOfEscapesTheValue(t *testing.T) {
 	}
 }
 
+func TestHiddenEntityIDs(t *testing.T) {
+	fake := &fakeEntitiesReader{result: `["light.hall"]`}
+	d := entitiesDataSource{client: fake}
+	got, err := d.hiddenEntityIDs(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{`{{ states | map(attribute="entity_id") | select("is_hidden_entity") | list | tojson }}`}; !reflect.DeepEqual(fake.templates, want) {
+		t.Errorf("templates = %q, want %q", fake.templates, want)
+	}
+	if !reflect.DeepEqual(got, map[string]bool{"light.hall": true}) {
+		t.Errorf("ids = %v", got)
+	}
+}
+
 func TestEntitiesValue(t *testing.T) {
 	v, err := entitiesValue([]client.EntityState{
 		{EntityID: "sensor.t", State: "21.5", LastChanged: "2026-10-04T10:00:00+00:00", Attributes: json.RawMessage(`{"friendly_name":"T","precision":1}`)},
 		{EntityID: "sun.sun", State: "above_horizon"},
-	})
+	}, map[string]bool{"sun.sun": true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +184,13 @@ func TestEntitiesValue(t *testing.T) {
 	if _, ok := sensor["attributes"].(basetypes.ObjectValue).Attributes()["precision"].(basetypes.NumberValue); !ok {
 		t.Errorf("precision is not a number: %v", sensor["attributes"])
 	}
+	if sensor["hidden"] != types.BoolValue(false) {
+		t.Errorf("hidden of sensor.t = %v, want false", sensor["hidden"])
+	}
 	sun := obj.Attributes()["sun.sun"].(basetypes.ObjectValue).Attributes()
+	if sun["hidden"] != types.BoolValue(true) {
+		t.Errorf("hidden of sun.sun = %v, want true", sun["hidden"])
+	}
 	if !sun["friendly_name"].IsNull() {
 		t.Errorf("friendly_name of sun.sun = %v, want null", sun["friendly_name"])
 	}

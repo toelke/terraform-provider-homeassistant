@@ -5,6 +5,8 @@ breaking changes may land in minor versions and are marked **Breaking** (ADR-001
 
 ## Unreleased
 
+- Data source `homeassistant_entities`: new `hidden` filter, and a `hidden` flag on each entry of
+  `entities`, so lookups can skip hidden duplicates (#30).
 - `examples/demo/`: a demo against a fresh Home Assistant in Docker (one automation template
   for every area, automations from YAML files, drift, dashboards per area), recorded in
   `docs/demo.cast`.
