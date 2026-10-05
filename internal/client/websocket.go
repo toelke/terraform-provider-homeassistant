@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -27,9 +28,21 @@ type WSClient struct {
 	cfg  Config
 	http *http.Client
 
-	// mu guards conn. It is held while dialling, so concurrent first commands share one dial.
+	// mu guards conn and dialing. It is not held while dialling.
 	mu   sync.Mutex
 	conn *wsConn
+	// dialing is the dial in progress, if any. Concurrent first commands share it.
+	dialing *wsDial
+}
+
+// wsDial is one dial that several commands may wait for. done is closed once conn and err are set.
+type wsDial struct {
+	done chan struct{}
+	conn *wsConn
+	err  error
+	// callerGone means the dialling command's own context ended the dial (cancel, or a deadline
+	// of the caller's), so the error says nothing about Home Assistant.
+	callerGone bool
 }
 
 // newWSClient builds a WSClient. It does not dial.
@@ -41,8 +54,11 @@ func newWSClient(cfg Config, httpClient *http.Client) *WSClient {
 type wsConn struct {
 	ws *websocket.Conn
 
-	// mu guards nextID, pending, and err, and serialises writes so HA sees ids in increasing
-	// order.
+	// writeMu serialises writes. It is taken before mu when assigning an id, so HA sees ids in
+	// increasing order.
+	writeMu sync.Mutex
+	// mu guards nextID, pending, and err. It is never held during I/O, so a slow write does not
+	// stall the dispatch of other results.
 	mu      sync.Mutex
 	nextID  int64
 	pending map[int64]chan wsMessage
@@ -63,15 +79,17 @@ type wsMessage struct {
 }
 
 // Command implements WSCommander. The provider's timeout bounds the whole command, including a
-// dial if one is needed.
-func (c *WSClient) Command(ctx context.Context, typ string, params map[string]any, result any) error {
+// dial if one is needed. A command that runs into that timeout fails the connection, so a dead
+// socket (e.g. a half-open TCP connection) is not reused and the next command dials again.
+func (c *WSClient) Command(parent context.Context, typ string, params map[string]any, result any) error {
+	ctx := parent
 	if c.cfg.Timeout > 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, c.cfg.Timeout)
+		ctx, cancel = context.WithTimeout(parent, c.cfg.Timeout)
 		defer cancel()
 	}
 
-	conn, err := c.connection(ctx)
+	conn, err := c.connection(ctx, parent)
 	if err != nil {
 		return err
 	}
@@ -84,6 +102,10 @@ func (c *WSClient) Command(ctx context.Context, typ string, params map[string]an
 
 	reply, err := conn.roundTrip(ctx, msg)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) && parent.Err() == nil {
+			conn.fail(fmt.Errorf("no reply to %s within %s", typ, c.cfg.Timeout))
+			return fmt.Errorf("%s: no reply within %s: %w", typ, c.cfg.Timeout, err)
+		}
 		return fmt.Errorf("%s: %w", typ, err)
 	}
 	if !reply.Success {
@@ -112,23 +134,56 @@ func (c *WSClient) Close() error {
 	return conn.ws.Close(websocket.StatusNormalClosure, "")
 }
 
-// connection returns the live connection, dialling and authenticating if there is none.
-func (c *WSClient) connection(ctx context.Context) (*wsConn, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+// connection returns the live connection, dialling and authenticating if there is none. ctx is
+// the command's context including the provider timeout; parent is the caller's own context.
+// Commands that arrive during a dial wait for it, but no longer than their own ctx allows.
+func (c *WSClient) connection(ctx, parent context.Context) (*wsConn, error) {
+	for {
+		c.mu.Lock()
+		if c.conn != nil && c.conn.alive() {
+			conn := c.conn
+			c.mu.Unlock()
+			return conn, nil
+		}
+		c.conn = nil
 
-	if c.conn != nil && c.conn.alive() {
-		return c.conn, nil
-	}
-	c.conn = nil
+		d := c.dialing
+		if d == nil {
+			d = &wsDial{done: make(chan struct{})}
+			c.dialing = d
+			c.mu.Unlock()
 
-	conn, err := c.dial(ctx)
-	if err != nil {
-		return nil, err
+			d.conn, d.err = c.dial(ctx, parent)
+			d.callerGone = d.err != nil && parent.Err() != nil
+
+			c.mu.Lock()
+			c.dialing = nil
+			if d.err == nil {
+				c.conn = d.conn
+				go c.readLoop(d.conn)
+			}
+			close(d.done)
+			c.mu.Unlock()
+			return d.conn, d.err
+		}
+		c.mu.Unlock()
+
+		select {
+		case <-d.done:
+			if d.callerGone {
+				continue // that caller gave up; this one dials itself
+			}
+			if d.err != nil {
+				return nil, d.err
+			}
+			// d.conn may have died since; the next iteration checks.
+		case <-ctx.Done():
+			if err := parent.Err(); err != nil {
+				return nil, fmt.Errorf("waiting for the connection to %s: %w", c.endpoint(), err)
+			}
+			return nil, fmt.Errorf("%w at %s: no connection within %s", ErrUnreachable, c.endpoint(), c.cfg.Timeout)
+		}
 	}
-	c.conn = conn
-	go c.readLoop(conn)
-	return conn, nil
 }
 
 func (c *WSClient) endpoint() string {
@@ -144,13 +199,17 @@ func (c *WSClient) endpoint() string {
 
 // dial opens the socket and performs the auth handshake:
 // `auth_required` → `auth` → `auth_ok` | `auth_invalid`.
-func (c *WSClient) dial(ctx context.Context) (*wsConn, error) {
+//
+// A dial that fails, including one that runs into the provider timeout (a host that is down or a
+// firewall that drops packets), is ErrUnreachable (ADR-0011). Only when the caller's own parent
+// context ended is the context error returned instead.
+func (c *WSClient) dial(ctx, parent context.Context) (*wsConn, error) {
 	endpoint := c.endpoint()
 	//nolint:bodyclose // websocket.Dial owns resp.Body: "You never need to close resp.Body yourself."
 	ws, _, err := websocket.Dial(ctx, endpoint, &websocket.DialOptions{HTTPClient: c.http})
 	if err != nil {
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return nil, fmt.Errorf("dialling %s: %w", endpoint, ctxErr)
+		if parentErr := parent.Err(); parentErr != nil {
+			return nil, fmt.Errorf("dialling %s: %w", endpoint, parentErr)
 		}
 		return nil, fmt.Errorf("%w at %s: %w", ErrUnreachable, endpoint, err)
 	}
@@ -240,18 +299,21 @@ func (conn *wsConn) fail(cause error) {
 func (conn *wsConn) roundTrip(ctx context.Context, msg map[string]any) (wsMessage, error) {
 	ch := make(chan wsMessage, 1)
 
+	conn.writeMu.Lock()
 	conn.mu.Lock()
 	if conn.err != nil {
 		err := conn.err
 		conn.mu.Unlock()
+		conn.writeMu.Unlock()
 		return wsMessage{}, err
 	}
 	conn.nextID++
 	id := conn.nextID
 	msg["id"] = id
 	conn.pending[id] = ch
-	err := wsjson.Write(ctx, conn.ws, msg)
 	conn.mu.Unlock()
+	err := wsjson.Write(ctx, conn.ws, msg)
+	conn.writeMu.Unlock()
 
 	if err != nil {
 		// A failed or interrupted write leaves the socket unusable.
