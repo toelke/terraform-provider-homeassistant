@@ -47,9 +47,10 @@ Do this before taking a new ticket. For each open PR (`gh pr list`), oldest firs
 
 ## Taking the next ticket
 
-1. **Pick:** first resume any abandoned ticket worktree or branch. Otherwise choose the
-   lowest-numbered ticket with `status: todo` whose `depends_on` tickets are all `done`, and
-   that has no open PR or branch named `ticket/NNN-*` (`gh pr list --search "head:ticket/NNN"`).
+1. **Pick:** `scripts/tickets.py --next` prints `NNN new` or `NNN resume <worktree or branch>`,
+   and exits 1 when nothing is ready. It applies the rule: resume abandoned work first, otherwise
+   the lowest-numbered `todo` ticket whose `depends_on` are all `done` and that has no PR,
+   worktree, or branch yet.
 2. **Claim:** for a new ticket, `git fetch && git worktree add ../tofu-ha-NNN -b
    ticket/NNN-<slug> origin/main`, then write `.owner`.
 3. **Read:** the ticket, plus every ADR and spec file in its frontmatter.
@@ -65,6 +66,8 @@ Do this before taking a new ticket. For each open PR (`gh pr list`), oldest firs
 
 - Commands (build, unit tests, docs generation, acceptance tests and their environment) are in
   the README's "Development" section. There is no Makefile.
+- `scripts/tickets.py` shows every ticket with its state (done, review, working, abandoned,
+  ready, blocked), its dependencies, and its PR or worktree. `--open` hides done tickets.
 - `scripts/pr-status.sh` shows every open PR in one table: mergeable, commits behind `main`,
   checks, unresolved threads, who commented last, and the LGTM check. Start PR tending with it.
 - Acceptance tests need Docker. If `docker info` works, run them for the packages you changed
