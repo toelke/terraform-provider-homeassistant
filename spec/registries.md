@@ -130,7 +130,11 @@ ID and import ID: `device_id`.
 | `name_by_user` | string | `null` |
 | `area_id` | string | `null` |
 | `labels` | set(string) | `[]` |
-| `disabled` | bool | `null` |
+| `disabled` | bool → `disabled_by: "user"` or `null` | `null` |
+
+As for entities, `disabled_by` can also be set by integrations or config entries; the provider
+only writes `"user"` or `null` and reads `"user"` as `true`. Disabling a device disables its
+entities too.
 
 | Computed |
 |---|
