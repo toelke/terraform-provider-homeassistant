@@ -1,0 +1,13 @@
+alias: "${name}: lights left on"
+description: Turns off a light in the ${name} when it has been on for two hours.
+triggers:
+  - trigger: state
+    entity_id: ${jsonencode(lights)}
+    to: "on"
+    for:
+      hours: 2
+actions:
+  - action: light.turn_off
+    target:
+      entity_id: "{{ trigger.entity_id }}"
+mode: parallel

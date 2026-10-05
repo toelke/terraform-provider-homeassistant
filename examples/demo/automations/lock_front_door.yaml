@@ -1,0 +1,13 @@
+alias: Lock the front door
+description: Locks the front door when it has been unlocked for ten minutes.
+triggers:
+  - trigger: state
+    entity_id: lock.front_door
+    to: unlocked
+    for:
+      minutes: 10
+actions:
+  - action: lock.lock
+    target:
+      entity_id: lock.front_door
+mode: single
