@@ -3,6 +3,7 @@ package resources
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -39,13 +40,14 @@ func (g generatedID) Create(ctx context.Context, name, id string) (string, error
 
 	got, err := g.create(ctx, createName)
 	if err != nil {
-		return "", fmt.Errorf("creating %s %q: %w. If %s with this name already exists, import it "+
-			"into this resource, rename or remove it in Home Assistant, or choose another name",
-			g.kind, createName, err, withArticle(g.kind))
+		return "", fmt.Errorf("creating %s %q: %w%s", g.kind, createName, err, g.nameHint(err))
 	}
 
+	// The compensating deletes run even if ctx is cancelled, e.g. by Ctrl-C, so the half-created
+	// object is not left behind. The client's own timeout still bounds them.
+	cleanupCtx := context.WithoutCancel(ctx)
 	if got != want {
-		if delErr := g.delete(ctx, got); delErr != nil {
+		if delErr := g.delete(cleanupCtx, got); delErr != nil {
 			return "", fmt.Errorf("home assistant assigned the ID %q instead of %q, and deleting %s %q "+
 				"again failed: %w. Delete it in Home Assistant", got, want, g.kind, got, delErr)
 		}
@@ -57,16 +59,27 @@ func (g generatedID) Create(ctx context.Context, name, id string) (string, error
 
 	if id != "" && name != id {
 		if err := g.rename(ctx, got, name); err != nil {
-			if delErr := g.delete(ctx, got); delErr != nil {
+			if delErr := g.delete(cleanupCtx, got); delErr != nil {
 				return "", fmt.Errorf("renaming %s %q to %q: %w; deleting it again also failed: %v. "+
 					"Delete it in Home Assistant", g.kind, got, name, err, delErr)
 			}
-			return "", fmt.Errorf("renaming %s %q to %q: %w. The new %s was deleted again. If %s "+
-				"with this name already exists, import it into this resource, rename or remove it in Home "+
-				"Assistant, or choose another name", g.kind, got, name, err, g.kind, withArticle(g.kind))
+			return "", fmt.Errorf("renaming %s %q to %q: %w. The new %s was deleted again%s",
+				g.kind, got, name, err, g.kind, g.nameHint(err))
 		}
 	}
 	return got, nil
+}
+
+// nameHint returns the hint on a name clash for an error from create or rename, starting with ". ".
+// Only Home Assistant's own rejection (a *client.WSError) can be a name clash; an unreachable HA or
+// a timeout gets no hint.
+func (g generatedID) nameHint(err error) string {
+	var wsErr *client.WSError
+	if !errors.As(err, &wsErr) {
+		return ""
+	}
+	return fmt.Sprintf(". If %s with this name already exists, import it into this resource, rename "+
+		"or remove it in Home Assistant, or choose another name", withArticle(g.kind))
 }
 
 // withArticle prefixes kind with "a" or "an", e.g. "an area".

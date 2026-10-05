@@ -157,8 +157,9 @@ func (r *dashboardResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 	if err := r.dashboards.SaveConfig(ctx, urlPath, config); err != nil {
-		// Roll back, so a failed create leaves nothing behind that blocks the next attempt.
-		if delErr := r.dashboards.Delete(ctx, dash.ID); delErr != nil {
+		// Roll back, so a failed create leaves nothing behind that blocks the next attempt. The
+		// rollback runs even if ctx is cancelled, e.g. by Ctrl-C.
+		if delErr := r.dashboards.Delete(context.WithoutCancel(ctx), dash.ID); delErr != nil {
 			err = errors.Join(err, fmt.Errorf("deleting the half-created dashboard %q: %w", urlPath, delErr))
 		}
 		resp.Diagnostics.AddError("Saving dashboard config", client.ErrorDetail(err))

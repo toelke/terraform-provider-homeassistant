@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -164,6 +165,16 @@ func TestErrorDetailHints(t *testing.T) {
 		{"unreachable", wrap(ErrUnreachable), "-refresh=false"},
 		{"unauthorized", wrap(ErrUnauthorized), "long-lived access token"},
 		{"other", errors.New("plain"), "plain"},
+		{"already configured", &FlowAbortedError{Flow: "config flow for mqtt", Reason: "already_configured"}, "tofu import"},
+		{"single instance", &FlowAbortedError{Flow: "config flow for met", Reason: "single_instance_allowed"}, "tofu import"},
+		{"cannot connect abort", &FlowAbortedError{Flow: "config flow for shelly", Reason: "cannot_connect"}, "host and port"},
+		{"cannot connect form", fmt.Errorf("creating: %w", &FlowFormError{
+			Flow: "config flow for shelly", StepID: "user", Errors: map[string]string{"base": "cannot_connect"},
+		}), "host and port"},
+		{"invalid auth form", &FlowFormError{
+			Flow: "config flow for shelly", StepID: "credentials", Errors: map[string]string{"password": "invalid_auth"},
+		}, "credentials"},
+		{"invalid auth abort", &FlowAbortedError{Flow: "config flow for shelly", Reason: "invalid_auth"}, "credentials"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := ErrorDetail(tc.err)
@@ -171,6 +182,17 @@ func TestErrorDetailHints(t *testing.T) {
 				t.Errorf("ErrorDetail = %q, want it to start with the error and contain %q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestErrorDetailNoHintForOtherFlowErrors(t *testing.T) {
+	for _, err := range []error{
+		&FlowAbortedError{Flow: "config flow for shelly", Reason: "no_devices_found"},
+		&FlowFormError{Flow: "config flow for shelly", StepID: "user", Errors: map[string]string{"host": "invalid_host"}},
+	} {
+		if got := ErrorDetail(err); got != err.Error() {
+			t.Errorf("ErrorDetail = %q, want just %q", got, err.Error())
+		}
 	}
 }
 

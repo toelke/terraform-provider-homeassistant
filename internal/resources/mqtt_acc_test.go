@@ -215,7 +215,7 @@ func TestAccMQTT_Import(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if err := configEntries(t).Delete(ctx, id); err != nil {
+		if _, err := configEntries(t).Delete(ctx, id); err != nil {
 			t.Error(err)
 		}
 	})

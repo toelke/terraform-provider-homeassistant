@@ -116,8 +116,13 @@ equal to the baseline is never drift (ADR-0023).
 - An unreachable HA is an error, with a hint to use `-refresh=false` (ADR-0011).
 - 401 → "token invalid or expired".
 - WS `success: false` → surface `error.code` and `error.message`.
-- Config flow `abort` → surface the reason, with friendly text for `already_configured` (suggest
-  import), `cannot_connect`, and `invalid_auth`.
+- Config flow `abort` → surface the reason, with friendly text for `already_configured` and
+  `single_instance_allowed` (suggest import), `cannot_connect`, and `invalid_auth`. The last two
+  get the same text when a form rejects its data with them.
+- A generated-ID create or rename that fails suggests a name clash (import, rename, or another
+  name) only when HA rejected it, not when HA is unreachable or the call timed out.
+- A compensating delete, which undoes a half-done create, runs even if the context was cancelled
+  (Ctrl-C). The client's own timeout still bounds it.
 - 404 / missing on Read → `RemoveResource` (the object was deleted outside Tofu).
 
 **Eventual consistency.** HA reloads automations, scripts, and scenes asynchronously after a

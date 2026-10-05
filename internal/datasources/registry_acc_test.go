@@ -52,7 +52,7 @@ func setUpRegistry(t *testing.T) registryFixture {
 	entries := client.NewConfigEntries(c.WS, c.REST)
 	entryID, err := client.NewConfigFlows(c.REST).Run(ctx, "moon", "", []client.FlowStep{{StepID: "user"}})
 	must(err)
-	t.Cleanup(func() { _ = entries.Delete(context.Background(), entryID) })
+	t.Cleanup(func() { _, _ = entries.Delete(context.Background(), entryID) })
 
 	// The device appears once the entry has set up its sensor, shortly after the flow ends.
 	devices := client.Devices(c.WS)

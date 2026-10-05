@@ -134,7 +134,7 @@ func TestAccIntegration(t *testing.T) {
 					if !ok {
 						t.Fatal("entry Acc Trash is missing")
 					}
-					if err := configEntries(t).Delete(context.Background(), e.EntryID); err != nil {
+					if _, err := configEntries(t).Delete(context.Background(), e.EntryID); err != nil {
 						t.Fatal(err)
 					}
 				},
@@ -160,7 +160,7 @@ func TestAccIntegration_Import(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if err := configEntries(t).Delete(ctx, id); err != nil {
+		if _, err := configEntries(t).Delete(ctx, id); err != nil {
 			t.Error(err)
 		}
 	})

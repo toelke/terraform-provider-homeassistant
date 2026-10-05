@@ -3,6 +3,7 @@ package client
 import (
 	"errors"
 	"fmt"
+	"slices"
 )
 
 var (
@@ -54,5 +55,36 @@ func ErrorDetail(err error) string {
 		return err.Error() + "\n\nCreate a new long-lived access token of an admin user in your " +
 			"Home Assistant profile and set it as the provider `token`."
 	}
+	if hint := flowHint(err); hint != "" {
+		return err.Error() + "\n\n" + hint
+	}
 	return err.Error()
+}
+
+// flowHint returns a hint for the config-flow aborts and form errors a user can act on, or "".
+func flowHint(err error) string {
+	var reasons []string
+	var aborted *FlowAbortedError
+	if errors.As(err, &aborted) {
+		reasons = append(reasons, aborted.Reason)
+	}
+	var form *FlowFormError
+	if errors.As(err, &form) {
+		for _, r := range form.Errors {
+			reasons = append(reasons, r)
+		}
+	}
+	switch {
+	case slices.Contains(reasons, "already_configured"), slices.Contains(reasons, "single_instance_allowed"):
+		return "Home Assistant already has a config entry for this. Import it into this resource " +
+			"with `tofu import <resource address> <entry_id>`, or delete it in Home Assistant. The " +
+			"data source `homeassistant_integration` reads its entry_id."
+	case slices.Contains(reasons, "cannot_connect"):
+		return "Home Assistant could not connect to the device or service. Check the host and port, " +
+			"and that Home Assistant can reach it over the network."
+	case slices.Contains(reasons, "invalid_auth"):
+		return "The device or service rejected the credentials. Check the username, password, or " +
+			"key in the configuration."
+	}
+	return ""
 }
