@@ -15,7 +15,7 @@ func NewAutomation() resource.Resource {
 			"editor. Whether it is enabled is runtime state and not managed; to disable it as " +
 			"code, set `initial_state = false` inside `config`.",
 		idDescription: "Config ID of the automation, e.g. `motion_bedroom`: lowercase letters, " +
-			"digits, and underscores. Changing it replaces the automation. Import with this ID.",
+			"digits, and underscores. Changing it replaces the automation. Creating fails if one with this ID already exists; import it instead.",
 		configDescription: "The automation (`alias`, `description`, `mode`, `triggers`, " +
 			"`conditions`, `actions`, …), as an HCL object or " +
 			"`yamldecode(file(\"automation.yaml\"))`. YAML copied from the automation " +

@@ -163,7 +163,7 @@ func (r *dashboardResource) Create(ctx context.Context, req resource.CreateReque
 		if delErr := r.dashboards.Delete(context.WithoutCancel(ctx), dash.ID); delErr != nil {
 			err = errors.Join(err, fmt.Errorf("deleting the half-created dashboard %q: %w", urlPath, delErr))
 		}
-		resp.Diagnostics.AddError("Saving dashboard config", client.ErrorDetail(err))
+		addSaveError(&resp.Diagnostics, "Saving dashboard config", err)
 		return
 	}
 	r.storeBaseline(ctx, urlPath, resp.Private, &resp.Diagnostics)
@@ -251,7 +251,7 @@ func (r *dashboardResource) Update(ctx context.Context, req resource.UpdateReque
 		}
 		urlPath := plan.URLPath.ValueString()
 		if err := r.dashboards.SaveConfig(ctx, urlPath, config); err != nil {
-			resp.Diagnostics.AddError("Saving dashboard config", client.ErrorDetail(err))
+			addSaveError(&resp.Diagnostics, "Saving dashboard config", err)
 			return
 		}
 		r.storeBaseline(ctx, urlPath, resp.Private, &resp.Diagnostics)

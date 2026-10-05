@@ -203,8 +203,9 @@ func TestAccAutomation_YAMLRoundTrip(t *testing.T) {
 	}
 	config := acctest.ProviderConfig + fmt.Sprintf(`
 resource "homeassistant_automation" "test" {
-  id     = "acc_away"
-  config = yamldecode(file(%q))
+  id       = "acc_away"
+  config   = yamldecode(file(%q))
+  timeouts = { create = "2m" }
 }
 `, file)
 	const addr = "homeassistant_automation.test"
@@ -246,6 +247,38 @@ resource "homeassistant_automation" "test" {
 }
 `,
 				ExpectError: regexp.MustCompile(`(?s)HTTP 400.*no_such_trigger`),
+			},
+		},
+	})
+}
+
+// An automation that already exists with the ID, e.g. made in the editor, is not overwritten
+// (ADR-0024).
+func TestAccAutomation_IDCollision(t *testing.T) {
+	const existing = `{"alias":"Made in the UI","triggers":[],"actions":[]}`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				PreConfig: func() {
+					if err := automations(t).Save(context.Background(), "acc_taken", json.RawMessage(existing)); err != nil {
+						t.Fatal(err)
+					}
+					t.Cleanup(func() { _ = automations(t).Delete(context.Background(), "acc_taken") })
+				},
+				Config: acctest.ProviderConfig + `
+resource "homeassistant_automation" "test" {
+  id     = "acc_taken"
+  config = { alias = "Acc Taken", triggers = [], actions = [] }
+}
+`,
+				ExpectError: regexp.MustCompile(`(?s)already\s+has\s+an\s+automation\s+with\s+the\s+ID\s+"acc_taken".*tofu\s+import`),
+			},
+			{
+				// The existing automation is unchanged.
+				Config: acctest.ProviderConfig,
+				Check:  checkAutomationConfig(t, "acc_taken", existing),
 			},
 		},
 	})

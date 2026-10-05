@@ -78,11 +78,22 @@ resource "homeassistant_automation" "vacation_lights" {
 ### Required
 
 - `config` (Dynamic) The automation (`alias`, `description`, `mode`, `triggers`, `conditions`, `actions`, …), as an HCL object or `yamldecode(file("automation.yaml"))`. YAML copied from the automation editor works unchanged once its `id` line is removed. Home Assistant validates it on apply. When it saves, Home Assistant renames old keys (`trigger`, `condition`, and `action` at the top level become plurals, `service` becomes `action`); the provider keeps your spelling, and the plan stays empty.
-- `id` (String) Config ID of the automation, e.g. `motion_bedroom`: lowercase letters, digits, and underscores. Changing it replaces the automation. Import with this ID.
+- `id` (String) Config ID of the automation, e.g. `motion_bedroom`: lowercase letters, digits, and underscores. Changing it replaces the automation. Creating fails if one with this ID already exists; import it instead.
+
+### Optional
+
+- `timeouts` (Attributes) (see [below for nested schema](#nestedatt--timeouts))
 
 ### Read-Only
 
 - `entity_id` (String) Entity ID of the automation, e.g. `automation.bedroom_lights_on_motion`. Home Assistant derives it from the alias when the automation is first created, and keeps it afterwards.
+
+<a id="nestedatt--timeouts"></a>
+### Nested Schema for `timeouts`
+
+Optional:
+
+- `create` (String) A string that can be [parsed as a duration](https://pkg.go.dev/time#ParseDuration) consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours).
 
 ## Import
 

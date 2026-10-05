@@ -14,7 +14,7 @@ func NewScene() resource.Resource {
 		description: "A scene, stored in `scenes.yaml` like one made in the scene editor. " +
 			"Automations and scripts activate it with the action `scene.turn_on`.",
 		idDescription: "Config ID of the scene, e.g. `movie_night`: lowercase letters, digits, and " +
-			"underscores. Changing it replaces the scene. Import with this ID.",
+			"underscores. Changing it replaces the scene. Creating fails if one with this ID already exists; import it instead.",
 		configDescription: "The scene (`name`, `icon`, `entities`, …), as an HCL object or " +
 			"`yamldecode(file(\"scene.yaml\"))`. `entities` maps entity IDs to the state to set, " +
 			"e.g. `{ \"light.tv\" = { state = \"on\", brightness = 80 } }`. YAML copied from the " +

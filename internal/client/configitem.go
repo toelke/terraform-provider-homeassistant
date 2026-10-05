@@ -7,11 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 )
-
-// entityPollInterval is how often FindEntity polls `GET /api/states`.
-const entityPollInterval = 250 * time.Millisecond
 
 // ConfigItems manages the items of one REST config editor, `/api/config/<domain>/config/<id>`:
 // automations, scripts, or scenes. Each item has a user-chosen ID (ADR-0008) and a config object
@@ -76,51 +72,68 @@ func (c ConfigItems) Delete(ctx context.Context, id string) error {
 	return c.rest.Do(ctx, http.MethodDelete, c.path(id), nil, nil)
 }
 
-// ErrEntityNotFound means no entity appeared for a config item before the wait ran out.
+// ErrEntityNotFound means the item has no entity (yet): HA reloads asynchronously after Save.
 var ErrEntityNotFound = errors.New("entity not found")
 
-// FindEntity returns the entity ID of the item. For a domain that stores the ID inside the item,
-// that is the entity of the domain whose `attributes.id` is id; for one that stores it as the key
-// (script), it is `<domain>.<id>`. Because HA reloads asynchronously after Save, it polls `GET /api/states` until the
-// entity appears or wait has passed, and then returns ErrEntityNotFound. A wait of zero looks
-// once.
-func (c ConfigItems) FindEntity(ctx context.Context, id string, wait time.Duration) (string, error) {
-	deadline := time.Now().Add(wait)
-	for {
-		var states []struct {
-			EntityID   string `json:"entity_id"`
-			Attributes struct {
-				ID any `json:"id"`
-			} `json:"attributes"`
-		}
-		if err := c.rest.Get(ctx, "states", &states); err != nil {
-			return "", err
-		}
-		for _, s := range states {
-			if c.matches(s.EntityID, s.Attributes.ID, id) {
-				return s.EntityID, nil
-			}
-		}
-		if !time.Now().Before(deadline) {
-			if !c.idInBody {
-				return "", fmt.Errorf("%w: no entity %s.%s after %s", ErrEntityNotFound, c.domain, id, wait)
-			}
-			return "", fmt.Errorf("%w: no %s entity has attributes.id %q after %s", ErrEntityNotFound, c.domain, id, wait)
-		}
-		select {
-		case <-ctx.Done():
-			return "", ctx.Err()
-		case <-time.After(entityPollInterval):
-		}
+// FixedEntityID returns the entity ID of the item for a domain that stores the ID as the item's
+// key (script): `<domain>.<id>`. It returns false for a domain whose entity ID derives from the
+// item's name (automation, scene).
+func (c ConfigItems) FixedEntityID(id string) (string, bool) {
+	if c.idInBody {
+		return "", false
 	}
+	return c.domain + "." + id, true
 }
 
-// matches reports whether the state with entityID and attribute `id` attrID is the entity of
-// the item id.
-func (c ConfigItems) matches(entityID string, attrID any, id string) bool {
-	if !c.idInBody {
-		return entityID == c.domain+"."+id
+// FindEntity looks up the entity ID of the item once; it does not wait for a reload. For a
+// domain with a fixed entity ID, it reads that entity's state. Otherwise the entity is the one of
+// the domain whose `attributes.id` is id: known, the entity ID found before, is checked first with
+// `GET /api/states/<known>`, and only if it doesn't match (or is empty) are all states read. No
+// such entity is ErrEntityNotFound.
+func (c ConfigItems) FindEntity(ctx context.Context, id, known string) (string, error) {
+	if entityID, ok := c.FixedEntityID(id); ok {
+		_, err := c.rest.State(ctx, entityID)
+		if errors.Is(err, ErrNotFound) {
+			return "", fmt.Errorf("%w: no entity %s", ErrEntityNotFound, entityID)
+		}
+		return entityID, err
 	}
+
+	if known != "" && c.inDomain(known) {
+		s, err := c.rest.State(ctx, known)
+		switch {
+		case errors.Is(err, ErrNotFound):
+		case err != nil:
+			return "", err
+		default:
+			var attrs struct {
+				ID any `json:"id"`
+			}
+			if json.Unmarshal(s.Attributes, &attrs) == nil && attrs.ID == id {
+				return known, nil
+			}
+		}
+	}
+
+	var states []struct {
+		EntityID   string `json:"entity_id"`
+		Attributes struct {
+			ID any `json:"id"`
+		} `json:"attributes"`
+	}
+	if err := c.rest.Get(ctx, "states", &states); err != nil {
+		return "", err
+	}
+	for _, s := range states {
+		if c.inDomain(s.EntityID) && s.Attributes.ID == id {
+			return s.EntityID, nil
+		}
+	}
+	return "", fmt.Errorf("%w: no %s entity has attributes.id %q", ErrEntityNotFound, c.domain, id)
+}
+
+// inDomain reports whether entityID is in the item's domain.
+func (c ConfigItems) inDomain(entityID string) bool {
 	domain, _, _ := strings.Cut(entityID, ".")
-	return domain == c.domain && attrID == id
+	return domain == c.domain
 }
