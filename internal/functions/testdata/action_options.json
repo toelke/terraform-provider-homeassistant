@@ -1,0 +1,9 @@
+{
+  "action": "light.turn_on",
+  "data": {
+    "brightness_pct": 80
+  },
+  "target": {
+    "area_id": "kitchen"
+  }
+}

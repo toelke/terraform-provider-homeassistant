@@ -1,0 +1,6 @@
+{
+  "above": 25,
+  "entity_id": "sensor.temperature",
+  "for": "00:10:00",
+  "trigger": "numeric_state"
+}

@@ -1,0 +1,9 @@
+{
+  "condition": "state",
+  "entity_id": "alarm_control_panel.home",
+  "for": "00:01:00",
+  "state": [
+    "armed_away",
+    "armed_night"
+  ]
+}

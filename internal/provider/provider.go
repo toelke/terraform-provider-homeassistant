@@ -131,9 +131,16 @@ func (p *HomeAssistantProvider) DataSources(_ context.Context) []func() datasour
 
 func (p *HomeAssistantProvider) Functions(_ context.Context) []func() function.Function {
 	return []func() function.Function{
+		functions.NewAction,
+		functions.NewDelay,
 		functions.NewEntitiesCard,
 		functions.NewGridSection,
 		functions.NewHeadingCard,
+		functions.NewNumericStateTrigger,
+		functions.NewStateCondition,
+		functions.NewStateTrigger,
 		functions.NewTileCard,
+		functions.NewTimeCondition,
+		functions.NewTimeTrigger,
 	}
 }
