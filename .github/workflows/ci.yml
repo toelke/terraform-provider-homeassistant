@@ -36,3 +36,26 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go test -short -race ./...
+
+  # PR branches are rebased onto main, never merged with it: main gets one merge commit per PR,
+  # and the branch itself stays linear. (A ruleset can't express this: GitHub's "linear history"
+  # rule also counts main's own merge commits.)
+  rebased:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The PR head itself, not the merge commit GitHub creates for testing it.
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: no merge commits on the branch
+        env:
+          BASE: ${{ github.event.pull_request.base.ref }}
+        run: |
+          merges="$(git rev-list --merges "origin/$BASE..HEAD")"
+          if [ -n "$merges" ]; then
+            echo "::error::This branch contains merge commits. Rebase onto $BASE instead of merging it:"
+            git log --oneline --no-walk $merges
+            exit 1
+          fi
