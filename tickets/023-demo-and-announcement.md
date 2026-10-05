@@ -1,14 +1,14 @@
 ---
 status: todo
-depends_on: [021, 022]
+depends_on: [021]
 adrs: [0005, 0007]
 spec: [dashboards.md, automations.md]
 ---
 
-# Release v0.2.0, demo, and r/homeassistant announcement
+# Demo and r/homeassistant announcement
 
 ## Scope
-- Tag `v0.2.0` (dashboards) and update `CHANGELOG.md`.
+- Demonstrates the released `v0.1.0`; this ticket tags nothing.
 - `examples/demo/`: a self-contained configuration that runs against a fresh HA container (reuse
   the `internal/acctest` onboarding, or a script with the same steps). It shows:
   1. Automations from `yamldecode(file(...))`. An automation is changed in the UI, `tofu plan`

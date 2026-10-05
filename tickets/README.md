@@ -2,16 +2,11 @@
 
 Each ticket is one vertical slice. A slice is done when it has code, unit tests, an acceptance
 test where it applies, generated docs, and an example. The numbers give a rough order; the
-`depends_on` frontmatter gives the real order. Milestones are a plan, not a decision, and can be
-reshuffled at any time.
+`depends_on` frontmatter gives the real order; `scripts/tickets.py` shows it.
 
-| Milestone | Tickets |
-|---|---|
-| Foundation | 001–005, 006 (release pipeline; `v0.0.x` pre-releases from here on) |
-| v0.1 | 007–020, 021 (tag) |
-| v0.2 dashboards + announcement | 022, 023 (tag, demo, Reddit post) |
-| v0.3 integrations | 024–026 |
-| Builder functions | 027–028 |
+Releases cut whatever is merged (ADR-0019): `v0.0.x` pre-releases at any time, `v0.1.0` once
+ticket 021's dependencies are done. The announcement (023) follows v0.1.0. Later releases come
+when there is something worth releasing.
 
 Status values: `todo`, `doing`, `done`.
 
