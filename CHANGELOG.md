@@ -20,6 +20,11 @@ breaking changes may land in minor versions and are marked **Breaking** (ADR-001
   level, `service` in action steps) no longer shows a diff after every apply. The provider records
   what Home Assistant stored after its own write and compares later reads against it
   (ADR-0023). States from v0.1.0 show the diff once more, until the next apply (#36).
+- Fixed: WebSocket client: a command that times out now drops the connection, so a dead
+  (half-open) connection no longer makes every later command time out; the next command dials
+  again. A dial that times out (Home Assistant down or firewalled) is now reported as
+  unreachable, with the `-refresh=false` hint, and commands waiting for a shared dial give up
+  when their own context ends (#38).
 
 ## 0.1.0
 

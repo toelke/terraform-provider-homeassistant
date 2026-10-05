@@ -3,9 +3,11 @@ package client
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -227,11 +229,13 @@ func TestWSDropThenRedial(t *testing.T) {
 }
 
 func TestWSContextCancel(t *testing.T) {
+	received := make(chan struct{})
 	f := newFakeHA(t, func(_ int32, s *fakeSession) {
 		slow := s.read() // never answered until the next command arrives
 		if slow == nil {
 			return
 		}
+		close(received)
 		next := s.read()
 		if next == nil {
 			return
@@ -245,7 +249,7 @@ func TestWSContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- c.Command(ctx, "slow", nil, nil) }()
-	time.Sleep(50 * time.Millisecond)
+	<-received
 	cancel()
 	select {
 	case err := <-done:
@@ -280,6 +284,132 @@ func TestWSTimeout(t *testing.T) {
 	err := c.Command(context.Background(), "slow", nil, nil)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("err = %v, want context.DeadlineExceeded", err)
+	}
+}
+
+// A command that runs into the provider timeout fails the connection: a half-open socket must
+// not swallow every later command (ADR-0004: the next command dials again).
+func TestWSTimeoutThenRedial(t *testing.T) {
+	f := newFakeHA(t, func(dial int32, s *fakeSession) {
+		if dial == 1 {
+			for s.read() != nil { // never answer, like a half-open connection
+			}
+			return
+		}
+		echo(dial, s)
+	})
+	c := f.client(t, testToken)
+	c.cfg.Timeout = 100 * time.Millisecond
+
+	if err := c.Command(context.Background(), "slow", nil, nil); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("first err = %v, want context.DeadlineExceeded", err)
+	}
+
+	c.cfg.Timeout = 5 * time.Second
+	var got map[string]any
+	if err := c.Command(context.Background(), "ping", nil, &got); err != nil {
+		t.Fatalf("after timeout: %v", err)
+	}
+	if got["id"] != float64(1) {
+		t.Errorf("id after redial = %v, want 1 (fresh connection)", got["id"])
+	}
+	if d := f.dials.Load(); d != 2 {
+		t.Errorf("dials = %d, want 2", d)
+	}
+}
+
+// blackhole accepts TCP connections and never answers, like a firewalled host that lets the
+// connection through, or an HTTP upgrade that hangs.
+func blackhole(t *testing.T) *url.URL {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	var conns []net.Conn
+	go func() {
+		for {
+			conn, err := l.Accept()
+			if err != nil {
+				return
+			}
+			mu.Lock()
+			conns = append(conns, conn)
+			mu.Unlock()
+		}
+	}()
+	t.Cleanup(func() {
+		_ = l.Close()
+		mu.Lock()
+		defer mu.Unlock()
+		for _, conn := range conns {
+			_ = conn.Close()
+		}
+	})
+	return &url.URL{Scheme: "http", Host: l.Addr().String()}
+}
+
+// A dial that runs into the provider timeout is ErrUnreachable, so the diagnostic carries the
+// ADR-0011 hint. Concurrent first commands share that one dial and all get the same error.
+func TestWSDialTimeoutIsUnreachable(t *testing.T) {
+	c := newWSClient(Config{URL: blackhole(t), Token: testToken, Timeout: 200 * time.Millisecond}, http.DefaultClient)
+
+	const n = 5
+	errs := make([]error, n)
+	var wg sync.WaitGroup
+	for i := range n {
+		wg.Go(func() { errs[i] = c.Command(context.Background(), "ping", nil, nil) })
+	}
+	wg.Wait()
+	for i, err := range errs {
+		if !errors.Is(err, ErrUnreachable) {
+			t.Errorf("command %d: err = %v, want ErrUnreachable", i, err)
+			continue
+		}
+		if !strings.Contains(ErrorDetail(err), "-refresh=false") {
+			t.Errorf("command %d: detail %q lacks the -refresh=false hint", i, ErrorDetail(err))
+		}
+	}
+}
+
+// A command that arrives during another command's dial waits for it, but returns as soon as its
+// own context is cancelled.
+func TestWSWaiterRespectsContextDuringDial(t *testing.T) {
+	f := newFakeHA(t, echo)
+	arrived := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	f.srv.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		once.Do(func() { close(arrived) })
+		<-release
+		f.serve(w, r)
+	})
+	c := f.client(t, testToken)
+
+	first := make(chan error, 1)
+	go func() { first <- c.Command(context.Background(), "ping", nil, nil) }()
+	<-arrived
+
+	ctx, cancel := context.WithCancel(context.Background())
+	second := make(chan error, 1)
+	go func() { second <- c.Command(ctx, "ping", nil, nil) }()
+	cancel()
+	select {
+	case err := <-second:
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("waiter err = %v, want context.Canceled", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("waiter did not return after cancel while the dial hung")
+	}
+
+	close(release)
+	if err := <-first; err != nil {
+		t.Fatalf("dialling command: %v", err)
+	}
+	if d := f.dials.Load(); d != 1 {
+		t.Errorf("dials = %d, want 1", d)
 	}
 }
 
