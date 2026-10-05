@@ -29,6 +29,9 @@ breaking changes may land in minor versions and are marked **Breaking** (ADR-001
 - Data sources `homeassistant_areas` and `homeassistant_area` (by ID or name).
 - Data sources `homeassistant_devices`, filtered by integration, manufacturer, model, area, or
   label, and `homeassistant_device` (by ID or name).
+- Resource `homeassistant_entity_settings`, with import: name, icon, area, labels, hidden and
+  disabled of an entity an integration owns. Only the configured attributes are managed and,
+  on destroy, reset.
 
 ## 0.0.1
 
