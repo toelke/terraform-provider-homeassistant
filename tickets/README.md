@@ -10,6 +10,10 @@ when there is something worth releasing.
 
 Status values: `todo`, `doing`, `done`.
 
+A ticket planned from a GitHub issue lists it in its frontmatter: `issues: [30]`. Its PR says
+"Part of #30", never "Closes": an issue often needs several tickets. Once every ticket listing an
+issue is `done`, `scripts/tickets.py --closable` names the issue, and PR tending closes it.
+
 A ticket inserted later gets a letter suffix (`002b`), so existing numbers never change. It sorts
 right after its base number.
 

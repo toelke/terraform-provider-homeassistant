@@ -44,6 +44,9 @@ Do this before taking a new ticket. For each open PR (`gh pr list`), oldest firs
    since (resolving `CHANGELOG.md` conflicts counts as a rebase), and all checks are green.
    Agents post as toelke too, so your own comments always carry the Claude Code footer and are
    never just "LGTM".
+7. **Close finished issues:** after any merge, `scripts/tickets.py --closable` prints each open
+   issue whose tickets are all `done`, as `<issue> <tickets…>`. Close each one with
+   `gh issue close <issue> --comment "…"`, naming the tickets and their PRs.
 
 ## Taking the next task
 
@@ -67,8 +70,9 @@ A task is a ticket in `tickets/`, or a GitHub issue that the maintainer labelled
    same branch. If the ticket needs a decision that no ADR covers, or contradicts an ADR, stop
    and ask the human (options plus your recommendation). Record the answer as an ADR.
 5. **Ship:** set the ticket to `status: done`, then commit, push, and run `gh pr create`. The PR
-   body links the ticket and lists any spec changes. For an issue, there's no ticket file; the PR
-   body says `Closes #N`.
+   body links the ticket and lists any spec changes, and says "Part of #N" for each issue in the
+   ticket's `issues`. For an issue worked on directly, there's no ticket file; the PR body says
+   `Closes #N`.
 6. **Release** the worktree.
 
 ## Tooling

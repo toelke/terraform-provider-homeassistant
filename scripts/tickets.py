@@ -6,6 +6,8 @@
     scripts/tickets.py --next   only the next task: "<NNN> new", "<NNN> resume <path>",
                                 "issue <N> new" or "issue <N> resume <path>";
                                 exit 1 if nothing is ready
+    scripts/tickets.py --closable   open issues whose tickets (frontmatter `issues: [N]`) are all
+                                    done: "<N> <ticket> <ticket> ..."; they can be closed
 
 GitHub issues count as tasks only when they carry the `agent-ready` label and not
 `needs-decision`. Only maintainers can set labels, so nobody else can queue work.
@@ -51,11 +53,13 @@ def tickets_on_main() -> dict[str, dict]:
         front = text.split("---")[1] if text.startswith("---") else ""
         status = re.search(r"^status:\s*(\S+)", front, re.M)
         deps = re.search(r"^depends_on:\s*\[(.*)\]", front, re.M)
+        refs = re.search(r"^issues:\s*\[(.*)\]", front, re.M)
         title = re.search(r"^# (.+)$", text, re.M)
         tickets[m[1]] = {
             "status": status[1] if status else "?",
             "deps": [d.strip() for d in deps[1].split(",") if d.strip()] if deps else [],
             "title": title[1] if title else path,
+            "issues": [i.strip().lstrip("#") for i in refs[1].split(",") if i.strip()] if refs else [],
         }
     return tickets
 
@@ -78,7 +82,7 @@ def agent_ready_issues() -> dict[str, dict]:
     issues = json.loads(run("gh", "issue", "list", "--state", "open", "--label", "agent-ready",
                             "--limit", "100", "--json", "number,title,labels"))
     return {
-        f"issue {i['number']}": {"title": i["title"], "status": "todo", "deps": []}
+        f"issue {i['number']}": {"title": i["title"], "status": "todo", "deps": [], "issues": []}
         for i in sorted(issues, key=lambda i: i["number"])
         if "needs-decision" not in {l["name"] for l in i["labels"]}
     }
@@ -114,10 +118,25 @@ def remote_branches() -> set[str]:
     return {t for b in out.split() if (t := task_of(b.removeprefix("origin/")))}
 
 
+def closable(tickets: dict[str, dict]) -> int:
+    by_issue: dict[str, list[str]] = {}
+    for num, t in tickets.items():
+        for i in t["issues"]:
+            by_issue.setdefault(i, []).append(num)
+    open_issues = {str(i["number"]) for i in json.loads(
+        run("gh", "issue", "list", "--state", "open", "--limit", "500", "--json", "number"))}
+    for i, nums in sorted(by_issue.items(), key=lambda kv: int(kv[0])):
+        if i in open_issues and all(tickets[n]["status"] == "done" for n in nums):
+            print(i, *nums)
+    return 0
+
+
 def main() -> int:
     args = set(sys.argv[1:])
     run("git", "fetch", "-q", "--prune", "origin")
     tickets = tickets_on_main()
+    if "--closable" in args:
+        return closable(tickets)
     issues = agent_ready_issues()
     tickets.update(issues)
     prs, trees, branches = open_prs(), worktrees(), remote_branches()
