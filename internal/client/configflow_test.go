@@ -1,8 +1,11 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"reflect"
 	"strings"
@@ -16,11 +19,15 @@ type fakeFlow struct {
 	t       *testing.T
 	init    string
 	replies []string
+	// path is the flow endpoint below /api; it defaults to the config-flow one.
+	path string
 
 	mu        sync.Mutex
 	initBody  map[string]any
 	submitted []map[string]any
 	deleted   []string
+	// uploads are the contents of the files posted to /api/file_upload, in order.
+	uploads []string
 }
 
 func (f *fakeFlow) client() ConfigFlows {
@@ -31,11 +38,24 @@ func (f *fakeFlow) handle(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	base := "/api/" + f.path
+	if f.path == "" {
+		base = "/api/config/config_entries/flow"
+	}
 	switch {
-	case r.Method == http.MethodPost && r.URL.Path == "/api/config/config_entries/flow":
+	case r.Method == http.MethodPost && r.URL.Path == "/api/file_upload":
+		file, _, err := r.FormFile("file")
+		if err != nil {
+			f.t.Errorf("upload: %v", err)
+			return
+		}
+		b, _ := io.ReadAll(file)
+		f.uploads = append(f.uploads, string(b))
+		_, _ = fmt.Fprintf(w, `{"file_id":"file%d"}`, len(f.uploads))
+	case r.Method == http.MethodPost && r.URL.Path == base:
 		f.initBody = decodeBody(f.t, r)
 		_, _ = w.Write([]byte(f.init))
-	case r.Method == http.MethodPost && r.URL.Path == "/api/config/config_entries/flow/f1":
+	case r.Method == http.MethodPost && r.URL.Path == base+"/f1":
 		f.submitted = append(f.submitted, decodeBody(f.t, r))
 		if len(f.replies) == 0 {
 			f.t.Errorf("unexpected submit %v", f.submitted[len(f.submitted)-1])
@@ -50,8 +70,8 @@ func (f *fakeFlow) handle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		_, _ = w.Write([]byte(reply))
-	case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/api/config/config_entries/flow/"):
-		f.deleted = append(f.deleted, strings.TrimPrefix(r.URL.Path, "/api/config/config_entries/flow/"))
+	case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, base+"/"):
+		f.deleted = append(f.deleted, strings.TrimPrefix(r.URL.Path, base+"/"))
 		_, _ = w.Write([]byte(`{"message":"Flow aborted"}`))
 	default:
 		f.t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
@@ -291,7 +311,163 @@ func TestConfigFlowAbortFailureIsReported(t *testing.T) {
 	_, err := c.Run(t.Context(), "shelly", "", nil)
 
 	var unsupported *FlowUnsupportedError
-	if !errors.As(err, &unsupported) || !strings.Contains(err.Error(), "aborting config flow f1") {
+	if !errors.As(err, &unsupported) || !strings.Contains(err.Error(), "aborting flow f1") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+// MQTT's broker form before 2026.9: the advanced fields appear after a post with advanced_options,
+// and the certificate field after a post that selects a custom CA.
+const (
+	mqttBasic = `{"type":"form","flow_id":"f1","step_id":"broker","errors":{},"data_schema":[
+		{"name":"broker","required":true,"default":null},{"name":"port","required":true,"default":1883},
+		{"name":"username","optional":true},{"name":"password","optional":true},
+		{"name":"advanced_options","optional":true}]}`
+	mqttAdvanced = `{"type":"form","flow_id":"f1","step_id":"broker","errors":{},"data_schema":[
+		{"name":"broker","required":true,"default":"b"},{"name":"port","required":true,"default":1883},
+		{"name":"keepalive","optional":true},{"name":"set_ca_cert","optional":true,"default":"off"}]}`
+	mqttCert = `{"type":"form","flow_id":"f1","step_id":"broker","errors":{},"data_schema":[
+		{"name":"broker","required":true,"default":"b"},{"name":"port","required":true,"default":1883},
+		{"name":"keepalive","optional":true},{"name":"set_ca_cert","optional":true,"default":"custom"},
+		{"name":"certificate","optional":true,"selector":{"file":{}}}]}`
+	// MQTT's broker form since 2026.9: one form, with a section.
+	mqttSection = `{"type":"form","flow_id":"f1","step_id":"broker","errors":{},"data_schema":[
+		{"name":"broker","required":true},{"name":"port","required":true,"default":1883},
+		{"name":"other_settings","required":true,"type":"expandable","expanded":false,"schema":[
+			{"name":"keepalive","optional":true},{"name":"set_ca_cert","required":true},
+			{"name":"certificate","optional":true,"selector":{"file":{}}}]}]}`
+)
+
+func TestFieldAnswerFollowsChangingForms(t *testing.T) {
+	f := &fakeFlow{t: t, init: mqttBasic, replies: []string{mqttAdvanced, mqttCert, createEntry}}
+	rest := serve(t, f.handle)
+	values := map[string]any{"broker": "b", "port": 8883, "keepalive": 30, "set_ca_cert": "custom"}
+	files := map[string]string{"certificate": "PEM"}
+	answer := FieldAnswer(rest, values, files)
+	// Stand-in for the MQTT resource, which asks for the advanced fields.
+	expand := func(ctx context.Context, form FlowForm) (map[string]any, error) {
+		data, err := answer(ctx, form)
+		if err == nil && form.Has("advanced_options") {
+			data["advanced_options"] = true
+		}
+		return data, err
+	}
+
+	id, err := NewConfigFlows(rest).RunAnswer(t.Context(), "mqtt", "", expand)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id != "E1" {
+		t.Errorf("entry_id = %q", id)
+	}
+	want := []map[string]any{
+		{"broker": "b", "port": float64(8883), "advanced_options": true},
+		{"broker": "b", "port": float64(8883), "keepalive": float64(30), "set_ca_cert": "custom"},
+		{"broker": "b", "port": float64(8883), "keepalive": float64(30), "set_ca_cert": "custom", "certificate": "file1"},
+	}
+	if !reflect.DeepEqual(f.submitted, want) {
+		t.Errorf("submitted = %v", f.submitted)
+	}
+	if !reflect.DeepEqual(f.uploads, []string{"PEM"}) {
+		t.Errorf("uploads = %v", f.uploads)
+	}
+}
+
+func TestFieldAnswerFillsSections(t *testing.T) {
+	f := &fakeFlow{t: t, init: mqttSection, replies: []string{createEntry}}
+	rest := serve(t, f.handle)
+	values := map[string]any{"broker": "b", "set_ca_cert": "auto", "unused": true}
+
+	if _, err := NewConfigFlows(rest).RunAnswer(t.Context(), "mqtt", "", FieldAnswer(rest, values, nil)); err != nil {
+		t.Fatal(err)
+	}
+	// port and keepalive are left to HA's defaults; the section is a nested object.
+	want := []map[string]any{{"broker": "b", "other_settings": map[string]any{"set_ca_cert": "auto"}}}
+	if !reflect.DeepEqual(f.submitted, want) {
+		t.Errorf("submitted = %v", f.submitted)
+	}
+}
+
+func TestFieldAnswerRequiredFieldMissing(t *testing.T) {
+	f := &fakeFlow{t: t, init: mqttSection}
+	rest := serve(t, f.handle)
+
+	_, err := NewConfigFlows(rest).RunAnswer(t.Context(), "mqtt", "", FieldAnswer(rest, map[string]any{"broker": "b"}, nil))
+
+	var missing *FlowFieldMissingError
+	if !errors.As(err, &missing) || missing.Field != "set_ca_cert" {
+		t.Fatalf("err = %v", err)
+	}
+	if want := `config flow for mqtt asked for "set_ca_cert" in step "broker", which is not set`; err.Error() != want {
+		t.Errorf("message = %q", err)
+	}
+	if !reflect.DeepEqual(f.deleted, []string{"f1"}) {
+		t.Errorf("deleted = %v", f.deleted)
+	}
+}
+
+func TestFieldAnswerSameFormTwiceAborts(t *testing.T) {
+	f := &fakeFlow{t: t, init: mqttAdvanced, replies: []string{mqttAdvanced}}
+	rest := serve(t, f.handle)
+
+	_, err := NewConfigFlows(rest).RunAnswer(t.Context(), "mqtt", "", FieldAnswer(rest, map[string]any{"broker": "b"}, nil))
+
+	var missing *FlowStepMissingError
+	if !errors.As(err, &missing) || !missing.Repeated {
+		t.Fatalf("err = %v", err)
+	}
+	if len(f.submitted) != 1 || !reflect.DeepEqual(f.deleted, []string{"f1"}) {
+		t.Errorf("submitted = %v, deleted = %v", f.submitted, f.deleted)
+	}
+}
+
+func TestFieldAnswerFailedUploadAborts(t *testing.T) {
+	c := serve(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/file_upload":
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+		case r.Method == http.MethodDelete:
+		default:
+			_, _ = w.Write([]byte(mqttCert))
+		}
+	})
+
+	_, err := NewConfigFlows(c).RunAnswer(t.Context(), "mqtt", "", FieldAnswer(c, nil, map[string]string{"certificate": "PEM"}))
+
+	var httpErr *HTTPError
+	if !errors.As(err, &httpErr) || !strings.Contains(err.Error(), `uploading certificate for step "broker"`) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestOptionsFlow(t *testing.T) {
+	f := &fakeFlow{
+		t: t, path: "config/config_entries/options/flow", init: `{"type":"form","flow_id":"f1","step_id":"init","data_schema":[
+		{"name":"allow_service_calls","required":true,"default":false},{"name":"subscribe_logs","required":true,"default":false}]}`,
+		replies: []string{`{"type":"create_entry","flow_id":"f1","handler":"E1","result":true}`},
+	}
+	rest := serve(t, f.handle)
+
+	err := NewOptionsFlows(rest).Run(t.Context(), "E1", FieldAnswer(rest, map[string]any{"allow_service_calls": true}, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := map[string]any{"handler": "E1"}; !reflect.DeepEqual(f.initBody, want) {
+		t.Errorf("init body = %v", f.initBody)
+	}
+	if want := []map[string]any{{"allow_service_calls": true}}; !reflect.DeepEqual(f.submitted, want) {
+		t.Errorf("submitted = %v", f.submitted)
+	}
+}
+
+func TestOptionsFlowAbortIsError(t *testing.T) {
+	f := &fakeFlow{t: t, path: "config/config_entries/options/flow", init: `{"type":"abort","flow_id":"f1","reason":"not_loaded"}`}
+	rest := serve(t, f.handle)
+
+	err := NewOptionsFlows(rest).Run(t.Context(), "E1", FieldAnswer(rest, nil, nil))
+
+	var aborted *FlowAbortedError
+	if !errors.As(err, &aborted) || err.Error() != "options flow of config entry E1 aborted: not_loaded" {
 		t.Fatalf("err = %v", err)
 	}
 }

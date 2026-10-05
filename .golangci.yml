@@ -12,6 +12,10 @@ linters:
     - unparam
     - usestdlibvars
   settings:
+    misspell:
+      # The MQTT broker the acceptance tests run, not a typo of "mosquito".
+      ignore-rules:
+        - mosquitto
     revive:
       rules:
         # Every resource implements the same framework interface methods (Metadata, Schema,

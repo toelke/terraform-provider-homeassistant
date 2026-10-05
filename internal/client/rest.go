@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"strings"
 )
@@ -48,6 +49,38 @@ func (c *RESTClient) DoText(ctx context.Context, method, path string, body any) 
 	return text, err
 }
 
+// Upload sends content as a file to `POST /api/file_upload` and returns its file_id, which a
+// flow's file field takes. HA deletes the file once the flow has read it.
+func (c *RESTClient) Upload(ctx context.Context, filename string, content []byte) (string, error) {
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	part, err := w.CreateFormFile("file", filename)
+	if err == nil {
+		_, err = part.Write(content)
+	}
+	if err == nil {
+		err = w.Close()
+	}
+	if err != nil {
+		return "", fmt.Errorf("encoding upload of %s: %w", filename, err)
+	}
+	var out struct {
+		FileID string `json:"file_id"`
+	}
+	body := rawBody{contentType: w.FormDataContentType(), data: buf.Bytes()}
+	err = c.Do(ctx, http.MethodPost, "file_upload", body, &out)
+	if err == nil && out.FileID == "" {
+		err = fmt.Errorf("uploading %s: no file_id in the response", filename)
+	}
+	return out.FileID, err
+}
+
+// rawBody is a request body that is sent as is instead of as JSON.
+type rawBody struct {
+	contentType string
+	data        []byte
+}
+
 // send sends the request and passes a successful response body to read.
 func (c *RESTClient) send(ctx context.Context, method, path string, body any,
 	read func(endpoint string, r io.Reader) error,
@@ -55,20 +88,25 @@ func (c *RESTClient) send(ctx context.Context, method, path string, body any,
 	endpoint := c.cfg.URL.JoinPath("api", path).String()
 
 	var reqBody io.Reader
-	if body != nil {
-		b, err := json.Marshal(body)
+	contentType := ""
+	switch b := body.(type) {
+	case nil:
+	case rawBody:
+		reqBody, contentType = bytes.NewReader(b.data), b.contentType
+	default:
+		js, err := json.Marshal(body)
 		if err != nil {
 			return fmt.Errorf("encoding request to %s: %w", endpoint, err)
 		}
-		reqBody = bytes.NewReader(b)
+		reqBody, contentType = bytes.NewReader(js), "application/json"
 	}
 	req, err := http.NewRequestWithContext(ctx, method, endpoint, reqBody)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+c.cfg.Token)
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
 	}
 
 	resp, err := c.http.Do(req)
