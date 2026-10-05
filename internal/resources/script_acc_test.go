@@ -219,3 +219,52 @@ resource "homeassistant_script" "test" {
 		},
 	})
 }
+
+// TestAccScript_LegacyKeys checks the stored baseline (ADR-0023): HA renames `service` to
+// `action` on save, and the plan stays empty.
+func TestAccScript_LegacyKeys(t *testing.T) {
+	const addr = "homeassistant_script.test"
+	config := acctest.ProviderConfig + `
+resource "homeassistant_script" "test" {
+  id = "acc_legacy"
+  config = {
+    alias    = "Acc Legacy"
+    sequence = [{ service = "persistent_notification.create", data = { message = "Legacy" } }]
+  }
+}
+`
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		CheckDestroy:             checkScriptGone(t, "acc_legacy"),
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					checkScriptConfig(t, "acc_legacy", `{"alias":"Acc Legacy",
+						"sequence":[{"action":"persistent_notification.create","data":{"message":"Legacy"}}]}`),
+					resource.TestCheckResourceAttr(addr, "config.sequence.0.service", "persistent_notification.create"),
+				),
+			},
+			{
+				Config: config,
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()},
+				},
+			},
+			{
+				// A change saved in the script editor is still drift.
+				PreConfig: func() {
+					if err := scripts(t).Save(context.Background(), "acc_legacy",
+						json.RawMessage(`{"alias":"Edited in the UI","sequence":[]}`)); err != nil {
+						t.Fatal(err)
+					}
+				},
+				Config: config,
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(addr, plancheck.ResourceActionUpdate)},
+				},
+			},
+		},
+	})
+}

@@ -15,6 +15,11 @@ breaking changes may land in minor versions and are marked **Breaking** (ADR-001
 - `examples/`: ten use-case configurations taken from a real home (automations from YAML files
   and templates, entity lookups, floors, areas and labels, scenes and remotes, solar- and
   presence-driven automations, generated dashboards), indexed in `examples/README.md`.
+- Fixed: `homeassistant_automation`, `homeassistant_script`, `homeassistant_scene`: a config
+  with keys that Home Assistant renames on save (`trigger`, `condition`, `action` at the top
+  level, `service` in action steps) no longer shows a diff after every apply. The provider records
+  what Home Assistant stored after its own write and compares later reads against it
+  (ADR-0023). States from v0.1.0 show the diff once more, until the next apply (#36).
 
 ## 0.1.0
 

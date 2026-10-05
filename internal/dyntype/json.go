@@ -3,6 +3,8 @@ package dyntype
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -72,23 +74,39 @@ func decodeJSON(data []byte) (any, error) {
 }
 
 func semanticallyEqual(a, b any) (bool, error) {
-	na, err := normalize(a)
+	ja, err := canonicalJSON(a)
 	if err != nil {
 		return false, err
 	}
-	nb, err := normalize(b)
-	if err != nil {
-		return false, err
-	}
-	ja, err := json.Marshal(na)
-	if err != nil {
-		return false, err
-	}
-	jb, err := json.Marshal(nb)
+	jb, err := canonicalJSON(b)
 	if err != nil {
 		return false, err
 	}
 	return bytes.Equal(ja, jb), nil
+}
+
+// Hash returns the hex SHA-256 of a JSON document's normalised form, so two documents have the
+// same hash exactly when they are semantically equal. It is the stored baseline (ADR-0023).
+func Hash(data []byte) (string, error) {
+	g, err := decodeJSON(data)
+	if err != nil {
+		return "", err
+	}
+	j, err := canonicalJSON(g)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(j)
+	return hex.EncodeToString(sum[:]), nil
+}
+
+// canonicalJSON encodes a decoded JSON tree in normalised form.
+func canonicalJSON(g any) ([]byte, error) {
+	n, err := normalize(g)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(n)
 }
 
 // normalize returns a copy of a decoded JSON tree in canonical form. Together with

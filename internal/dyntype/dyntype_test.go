@@ -52,6 +52,18 @@ func TestSemanticallyEqualJSON(t *testing.T) {
 			if got != tc.want {
 				t.Errorf("SemanticallyEqualJSON(%s, %s) = %v, want %v", tc.prior, tc.read, got, tc.want)
 			}
+			// The stored baseline (ADR-0023) hashes the same normal form.
+			hp, err := Hash([]byte(tc.prior))
+			if err != nil {
+				t.Fatal(err)
+			}
+			hr, err := Hash([]byte(tc.read))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if (hp == hr) != tc.want {
+				t.Errorf("Hash(%s) == Hash(%s) is %v, want %v", tc.prior, tc.read, hp == hr, tc.want)
+			}
 		})
 	}
 }

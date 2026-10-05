@@ -18,7 +18,9 @@ func NewScript() resource.Resource {
 			"the script. Import with this ID.",
 		configDescription: "The script (`alias`, `description`, `mode`, `icon`, `fields`, " +
 			"`sequence`, …), as an HCL object or `yamldecode(file(\"script.yaml\"))`. YAML " +
-			"copied from the script editor works unchanged. Home Assistant validates it on apply.",
+			"copied from the script editor works unchanged. Home Assistant validates it on apply. " +
+			"When it saves, Home Assistant renames `service` to `action` in the sequence; the " +
+			"provider keeps your spelling, and the plan stays empty.",
 		entityIDDescription: "Entity ID of the script, `script.<id>`.",
 	}}
 }

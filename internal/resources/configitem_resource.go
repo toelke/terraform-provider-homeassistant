@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -105,7 +106,7 @@ func (r *configItemResource) Create(ctx context.Context, req resource.CreateRequ
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if !r.save(ctx, plan, resp.Diagnostics.AddError) {
+	if !r.save(ctx, plan, resp.Private, &resp.Diagnostics) {
 		return
 	}
 
@@ -138,7 +139,12 @@ func (r *configItemResource) Read(ctx context.Context, req resource.ReadRequest,
 		resp.Diagnostics.AddError("Reading "+r.spec.domain, client.ErrorDetail(err))
 		return
 	}
-	config, err := dyntype.FromJSON(raw)
+	baseline, diags := storedBaseline(ctx, req.Private)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	config, err := refreshedConfig(state.Config, raw, baseline)
 	if err != nil {
 		resp.Diagnostics.AddError("Reading "+r.spec.domain, err.Error())
 		return
@@ -166,24 +172,34 @@ func (r *configItemResource) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 	// The entity ID stays the same, so there is no reload to wait for.
-	if !r.save(ctx, plan, resp.Diagnostics.AddError) {
+	if !r.save(ctx, plan, resp.Private, &resp.Diagnostics) {
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
-// save sends the planned config to HA. It reports failures through addError and returns whether
-// it succeeded.
-func (r *configItemResource) save(ctx context.Context, plan configItemModel, addError func(string, string)) bool {
+// save sends the planned config to HA, then reads it back and stores it as the baseline
+// (ADR-0023). It reports problems in diags and returns whether the config was saved. Failing to
+// read it back is only a warning: without a baseline, Read falls back to semantic equality.
+func (r *configItemResource) save(ctx context.Context, plan configItemModel, private privateSetter, diags *diag.Diagnostics) bool {
 	config, err := plan.Config.JSON()
 	if err != nil {
-		addError("Invalid "+r.spec.domain+" config", err.Error())
+		diags.AddError("Invalid "+r.spec.domain+" config", err.Error())
 		return false
 	}
-	if err := r.items.Save(ctx, plan.ID.ValueString(), config); err != nil {
-		addError("Saving "+r.spec.domain, client.ErrorDetail(err))
+	id := plan.ID.ValueString()
+	if err := r.items.Save(ctx, id, config); err != nil {
+		diags.AddError("Saving "+r.spec.domain, client.ErrorDetail(err))
 		return false
 	}
+	stored, err := r.items.Get(ctx, id)
+	if err != nil {
+		diags.AddWarning("Reading the "+r.spec.domain+" back",
+			client.ErrorDetail(err)+"\n\nThe "+r.spec.domain+" was saved. Until the next apply, "+
+				"keys that Home Assistant renamed on save may show as a difference.")
+		return true
+	}
+	diags.Append(storeBaseline(ctx, private, stored)...)
 	return true
 }
 
