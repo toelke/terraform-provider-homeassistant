@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -165,6 +166,7 @@ func (r *dashboardResource) Create(ctx context.Context, req resource.CreateReque
 		resp.Diagnostics.AddError("Saving dashboard config", client.ErrorDetail(err))
 		return
 	}
+	r.storeBaseline(ctx, urlPath, resp.Private, &resp.Diagnostics)
 
 	plan.ID = plan.URLPath
 	plan.DashboardID = types.StringValue(dash.ID)
@@ -203,7 +205,12 @@ func (r *dashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 		resp.Diagnostics.AddError("Reading dashboard config", client.ErrorDetail(err))
 		return
 	default:
-		config, err = dyntype.FromJSON(raw)
+		baseline, diags := storedBaseline(ctx, req.Private)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		config, err = refreshedConfig(state.Config, raw, baseline)
 		if err != nil {
 			resp.Diagnostics.AddError("Reading dashboard config", err.Error())
 			return
@@ -242,13 +249,29 @@ func (r *dashboardResource) Update(ctx context.Context, req resource.UpdateReque
 			resp.Diagnostics.AddAttributeError(path.Root("config"), "Invalid dashboard config", err.Error())
 			return
 		}
-		if err := r.dashboards.SaveConfig(ctx, plan.URLPath.ValueString(), config); err != nil {
+		urlPath := plan.URLPath.ValueString()
+		if err := r.dashboards.SaveConfig(ctx, urlPath, config); err != nil {
 			resp.Diagnostics.AddError("Saving dashboard config", client.ErrorDetail(err))
 			return
 		}
+		r.storeBaseline(ctx, urlPath, resp.Private, &resp.Diagnostics)
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
+}
+
+// storeBaseline reads the config just saved back from HA and stores it as the baseline
+// (ADR-0023). Failing to read it back is only a warning: without a baseline, Read falls back to
+// semantic equality.
+func (r *dashboardResource) storeBaseline(ctx context.Context, urlPath string, private privateSetter, diags *diag.Diagnostics) {
+	stored, err := r.dashboards.Config(ctx, urlPath)
+	if err != nil {
+		diags.AddWarning("Reading the dashboard config back",
+			client.ErrorDetail(err)+"\n\nThe config was saved. Until the next apply, changes that "+
+				"Home Assistant made on save may show as a difference.")
+		return
+	}
+	diags.Append(storeBaseline(ctx, private, stored)...)
 }
 
 func (r *dashboardResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

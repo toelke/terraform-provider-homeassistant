@@ -199,7 +199,8 @@ resource "homeassistant_dashboard" "test" {
 				ImportStateVerify: true,
 			},
 			{
-				// A config edited in the HA UI shows up as drift, and the apply puts it back.
+				// A config edited in the HA UI shows up as drift despite the stored baseline, and the
+				// apply puts it back.
 				PreConfig: func() {
 					if err := dashboards(t).SaveConfig(context.Background(), "acc-dash",
 						json.RawMessage(`{"views":[{"title":"Edited in the UI"}]}`)); err != nil {

@@ -1,10 +1,13 @@
 package resources
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/toelke/terraform-provider-homeassistant/internal/dyntype"
 )
 
 func TestURLPathValidator(t *testing.T) {
@@ -55,5 +58,33 @@ func TestDashboardMetaChanged(t *testing.T) {
 		if !changed.metaChanged(base) {
 			t.Errorf("%s change not detected", name)
 		}
+	}
+}
+
+// A dashboard state without a baseline (from v0.1.0, or after import) compares the config read
+// back by semantic equality: key order and number format don't matter, a changed card does.
+func TestDashboardConfigWithoutBaselineIsSemanticEquality(t *testing.T) {
+	prior, err := dyntype.FromJSON([]byte(`{"views":[{"title":"Home","cards":[{"type":"tile","entity":"sun.sun","columns":6}]}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cases := map[string]struct {
+		read  string
+		equal bool
+	}{
+		"same config":      {`{"views":[{"cards":[{"columns":6.0,"entity":"sun.sun","type":"tile"}],"title":"Home"}]}`, true},
+		"edited in the UI": {`{"views":[{"title":"Home","cards":[{"type":"tile","entity":"sun.sun","columns":12}]}]}`, false},
+		"view added in HA": {`{"views":[{"title":"Home","cards":[{"type":"tile","entity":"sun.sun","columns":6}]},{"title":"New"}]}`, false},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			got, err := refreshedConfig(prior, json.RawMessage(tc.read), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if eq, diags := prior.DynamicSemanticEquals(t.Context(), got); diags.HasError() || eq != tc.equal {
+				t.Errorf("semantically equal = %v (%v), want %v", eq, diags, tc.equal)
+			}
+		})
 	}
 }
