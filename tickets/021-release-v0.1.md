@@ -1,6 +1,6 @@
 ---
 status: todo
-depends_on: [006, 020]
+depends_on: [006, 012, 013, 014, 020]
 adrs: [0018]
 spec: []
 ---
