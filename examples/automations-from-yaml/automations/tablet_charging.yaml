@@ -1,0 +1,31 @@
+---
+id: tablet_charging
+alias: 'Hallway: wall tablet charging'
+description: Keeps the wall tablet's battery between 30 % and 75 % by switching its charger plug
+triggers:
+- trigger: numeric_state
+  entity_id: ${e.tablet_battery}
+  below: 30
+  id: 'on'
+- trigger: numeric_state
+  entity_id: ${e.tablet_battery}
+  above: 75
+  id: 'off'
+conditions: []
+actions:
+- choose:
+  - conditions:
+    - condition: trigger
+      id: 'on'
+    sequence:
+    - action: switch.turn_on
+      target:
+        entity_id: ${e.tablet_charger}
+  - conditions:
+    - condition: trigger
+      id: 'off'
+    sequence:
+    - action: switch.turn_off
+      target:
+        entity_id: ${e.tablet_charger}
+mode: single

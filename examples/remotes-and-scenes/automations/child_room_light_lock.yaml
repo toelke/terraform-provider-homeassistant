@@ -1,0 +1,34 @@
+---
+id: child_room_light_lock
+alias: "Child's room: light lock"
+description: While the light lock is on, the ceiling light turns itself off again; the lock resets every morning
+triggers:
+- trigger: state
+  entity_id: ${e.child_room_ceiling}
+  from: 'off'
+  to: 'on'
+  id: light_on
+- trigger: time
+  at: '05:00:00'
+  id: morning
+conditions: []
+actions:
+- choose:
+  - conditions:
+    - condition: trigger
+      id: light_on
+    - condition: state
+      entity_id: ${e.child_room_light_lock}
+      state: 'on'
+    sequence:
+    - action: light.turn_off
+      target:
+        entity_id: ${e.child_room_ceiling}
+  - conditions:
+    - condition: trigger
+      id: morning
+    sequence:
+    - action: input_boolean.turn_off
+      target:
+        entity_id: ${e.child_room_light_lock}
+mode: single

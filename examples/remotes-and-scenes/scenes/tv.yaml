@@ -1,0 +1,17 @@
+---
+# Trimmed from the scene editor's YAML: of each light's captured attributes, only `state`,
+# `brightness` and the color are needed to apply the scene.
+id: tv
+name: TV
+icon: mdi:television
+entities:
+  ${e.string_light_a}:
+    state: 'on'
+    brightness: 255
+    color_temp_kelvin: 2000
+  ${e.string_light_b}:
+    state: 'off'
+  ${e.string_light_c}:
+    state: 'on'
+    brightness: 148
+    color_temp_kelvin: 2202

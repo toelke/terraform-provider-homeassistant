@@ -1,0 +1,12 @@
+{% set state = states('${person}') %}
+{% if state == 'home' %}
+# ${name} is home
+{% elif state == 'not_home' %}
+# ${name} is out
+{% else %}
+# ${name} is at {{ state }}
+{% endif %}
+
+{% if state != 'home' %}
+${name} would need {{ (states('${travel_time}') | int(-60) / 60) | int }} minutes to get home right now.
+{% endif %}

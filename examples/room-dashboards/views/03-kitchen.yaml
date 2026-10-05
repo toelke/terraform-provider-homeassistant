@@ -1,0 +1,30 @@
+---
+title: Kitchen
+path: kitchen
+icon: mdi:countertop
+type: panel
+subview: true
+cards:
+- type: vertical-stack
+  cards:
+  - ${jsonencode(alerts_card)}
+  - type: grid
+    square: false
+    columns: 4
+    cards:
+    - type: thermostat
+      entity: ${e.kitchen_climate}
+      features:
+      - type: climate-hvac-modes
+    - type: button
+      entity: ${e.kitchen_ceiling}
+      tap_action:
+        action: toggle
+    - type: button
+      entity: ${e.kitchen_counter}
+      tap_action:
+        action: toggle
+    - type: button
+      entity: ${e.oven_child_lock}
+      tap_action:
+        action: toggle

@@ -1,0 +1,36 @@
+---
+views:
+- title: Home
+  type: panel
+  cards:
+  - type: horizontal-stack
+    cards:
+    - type: vertical-stack
+      cards:
+      - ${jsonencode(alerts_card)}
+      - type: weather-forecast
+        entity: ${e.weather}
+        forecast_type: daily
+    - type: vertical-stack
+      cards:
+      # rendered from person-card.md.tftpl, see main.tf
+%{ for k, content in person_card ~}
+      - type: markdown
+        content: ${jsonencode(content)}
+%{ endfor ~}
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+        - type: button
+          name: Rooms
+          icon: mdi:floor-plan
+          tap_action:
+            action: navigate
+            navigation_path: /dashboard-rooms
+        - type: button
+          entity: ${e.solar_power}
+          show_state: true
+          tap_action:
+            action: navigate
+            navigation_path: /dashboard-rooms/balcony

@@ -1,0 +1,48 @@
+---
+title: Office
+path: office
+icon: mdi:desktop-classic
+type: panel
+subview: true
+cards:
+- type: horizontal-stack
+  cards:
+  - type: vertical-stack
+    cards:
+    # the shared card, as JSON
+    - ${jsonencode(alerts_card)}
+    - type: entity
+      entity: ${e.office_co2}
+    - type: markdown
+      content: |-
+        {% set co2 = states('${e.office_co2}') | int(0) %}
+        {% if co2 > 2000 %}<ha-alert alert-type="error">Open a window now!</ha-alert>
+        {% elif co2 > 1000 %}<ha-alert alert-type="warning">Time for some fresh air.</ha-alert>
+        {% else %}<ha-alert alert-type="success">Air is fine.</ha-alert>{% endif %}
+    - type: thermostat
+      entity: ${e.office_climate}
+    - type: horizontal-stack
+      cards:
+%{ for t in [17, 20, 22] ~}
+      - type: button
+        name: '${t} °C'
+        icon: mdi:thermometer
+        tap_action:
+          action: perform-action
+          perform_action: climate.set_temperature
+          target:
+            entity_id: ${e.office_climate}
+          data:
+            temperature: ${t}
+%{ endfor ~}
+  - type: grid
+    square: true
+    columns: 3
+    cards:
+%{ for x in [e.office_ceiling, e.office_desk_lamp, e.office_blind] ~}
+    - type: button
+      entity: ${x}
+      show_state: true
+      tap_action:
+        action: toggle
+%{ endfor ~}

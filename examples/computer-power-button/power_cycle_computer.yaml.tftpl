@@ -1,0 +1,37 @@
+---
+alias: Power-cycle a computer
+description: Powers a computer's smart plug so the computer boots, waits until it has been shut down again, then cuts the power and sends a message
+icon: mdi:desktop-tower
+mode: parallel
+max: 10
+fields:
+  computer:
+    description: Object ID of the computer's smart plug, e.g. desktop_plug
+    required: true
+sequence:
+- action: switch.turn_on
+  target:
+    entity_id: switch.{{ computer }}
+# wait until the computer draws power, i.e. has booted …
+- repeat:
+    sequence:
+    - delay:
+        seconds: 5
+    until:
+    - condition: template
+      value_template: '{{ states(''sensor.'' ~ computer ~ ''_energy_power'') | int(0) > 5 }}'
+# … and until it has been shut down
+- repeat:
+    sequence:
+    - delay:
+        seconds: 5
+    until:
+    - condition: template
+      value_template: '{{ states(''sensor.'' ~ computer ~ ''_energy_power'') | int(0) < 5 }}'
+- action: switch.turn_off
+  target:
+    entity_id: switch.{{ computer }}
+# the Tofu map of labels becomes a Jinja dict literal through jsonencode
+- action: ${notify_action}
+  data:
+    message: '{{ ${jsonencode(labels)}.get(computer, computer) }} is off again.'

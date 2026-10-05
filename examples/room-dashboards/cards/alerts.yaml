@@ -1,0 +1,23 @@
+---
+# Shown on top of several views; each alert is only visible while it applies.
+type: vertical-stack
+cards:
+- type: conditional
+  conditions:
+  - condition: state
+    entity: ${e.weather_warning}
+    state_not: '0'
+  card:
+    type: markdown
+    content: |-
+      # {{ state_attr('${e.weather_warning}', 'warning_1_headline') }}
+
+      {{ state_attr('${e.weather_warning}', 'warning_1_description') }}
+- type: conditional
+  conditions:
+  - condition: state
+    entity: ${e.oven_child_lock}
+    state: 'off'
+  card:
+    type: markdown
+    content: <ha-alert alert-type="warning">The oven's child lock is off.</ha-alert>

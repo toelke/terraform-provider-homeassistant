@@ -1,0 +1,19 @@
+---
+title: Living Room
+path: living-room
+icon: mdi:sofa
+type: panel
+subview: true
+cards:
+- type: grid
+  square: false
+  columns: 3
+  cards:
+  - type: light
+    entity: ${e.living_ceiling}
+  - type: light
+    entity: ${e.living_strings}
+  - type: tile
+    entity: ${e.living_blind}
+    features:
+    - type: cover-open-close

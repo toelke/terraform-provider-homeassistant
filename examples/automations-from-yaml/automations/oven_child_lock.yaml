@@ -1,0 +1,16 @@
+---
+id: oven_child_lock
+alias: 'Kitchen: re-enable the oven child lock'
+description: Turns the oven's child lock back on five minutes after someone turned it off
+triggers:
+- trigger: state
+  entity_id: ${e.oven_child_lock}
+  to: 'off'
+  for:
+    minutes: 5
+conditions: []
+actions:
+- action: switch.turn_on
+  target:
+    entity_id: ${e.oven_child_lock}
+mode: single

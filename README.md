@@ -46,6 +46,12 @@ in it is the request Home Assistant's automation editor sends on save. The dashb
 |---|---|
 | ![The Living Room view of the Home dashboard](docs/images/dashboard-living-room.png) | ![The Wall Tablet dashboard](docs/images/wall-tablet.png) |
 
+## Examples
+
+[`examples/README.md`](examples/README.md) lists small, self-contained configurations taken from a
+real home: automations from YAML files and templates, entity lookups, floors, areas and labels,
+scenes and remotes, solar- and presence-driven automations, and generated dashboards.
+
 ## Installation
 
 The provider is published on the OpenTofu and the Terraform registry as `toelke/homeassistant`.

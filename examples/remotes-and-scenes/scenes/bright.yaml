@@ -1,0 +1,13 @@
+---
+id: living_room_bright
+name: Living room bright
+icon: mdi:brightness-7
+entities:
+  ${e.string_lights}:
+    state: 'on'
+    brightness: 255
+    color_temp_kelvin: 5000
+# entity_only: the scene editor shows the entity rather than its whole device
+metadata:
+  ${e.string_lights}:
+    entity_only: true

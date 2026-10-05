@@ -1,0 +1,35 @@
+---
+id: subwoofer_follows_receiver
+alias: 'Living room: subwoofer follows the AV receiver'
+description: Powers the subwoofer's smart plug when the receiver is on, and cuts it two minutes after the receiver goes off
+triggers:
+- trigger: state
+  entity_id: ${e.av_receiver}
+  from: 'off'
+  to: 'on'
+  id: 'on'
+- trigger: state
+  entity_id: ${e.av_receiver}
+  from: 'on'
+  to: 'off'
+  for:
+    minutes: 2
+  id: 'off'
+conditions: []
+actions:
+- choose:
+  - conditions:
+    - condition: trigger
+      id: 'on'
+    sequence:
+    - action: switch.turn_on
+      target:
+        entity_id: ${e.subwoofer}
+  - conditions:
+    - condition: trigger
+      id: 'off'
+    sequence:
+    - action: switch.turn_off
+      target:
+        entity_id: ${e.subwoofer}
+mode: single
