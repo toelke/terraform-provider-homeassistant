@@ -26,12 +26,7 @@ type entitiesFixture struct {
 // only in the state machine, sensor.acc_ents_temp, with a device class.
 func setUpEntities(t *testing.T) entitiesFixture {
 	t.Helper()
-	ha := acctest.SharedInstance(t)
-	u, err := url.Parse(ha.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	c := client.New(client.Config{URL: u, Token: ha.Token, Timeout: 30 * time.Second})
+	c := entitiesClient(t)
 	ctx := context.Background()
 	must := func(err error) {
 		t.Helper()
@@ -61,21 +56,10 @@ func setUpEntities(t *testing.T) entitiesFixture {
 		_ = c.WS.Command(context.Background(), "config/area_registry/delete", map[string]any{"area_id": area.AreaID}, nil)
 	})
 
-	// A new helper's entity may reach the entity registry only shortly after the create returns.
-	updateEntity := func(fields map[string]any) {
-		t.Helper()
-		var err error
-		for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(200 * time.Millisecond) {
-			if err = c.WS.Command(ctx, "config/entity_registry/update", fields, nil); err == nil {
-				return
-			}
-		}
-		t.Fatal(err)
-	}
-	updateEntity(map[string]any{
+	updateEntity(t, c, map[string]any{
 		"entity_id": "input_boolean.acc_ents_one", "area_id": area.AreaID, "labels": []string{label.LabelID},
 	})
-	updateEntity(map[string]any{"entity_id": "input_boolean.acc_ents_two", "labels": []string{label.LabelID}})
+	updateEntity(t, c, map[string]any{"entity_id": "input_boolean.acc_ents_two", "labels": []string{label.LabelID}})
 
 	must(c.REST.Do(ctx, http.MethodPost, "states/sensor.acc_ents_temp", map[string]any{
 		"state": "21.5",
@@ -88,6 +72,132 @@ func setUpEntities(t *testing.T) entitiesFixture {
 	})
 
 	return entitiesFixture{areaID: area.AreaID, areaName: area.Name, labelID: label.LabelID, labelName: label.Name}
+}
+
+// entitiesClient returns a client for the shared HA instance.
+func entitiesClient(t *testing.T) *client.HAClient {
+	t.Helper()
+	ha := acctest.SharedInstance(t)
+	u, err := url.Parse(ha.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return client.New(client.Config{URL: u, Token: ha.Token, Timeout: 30 * time.Second})
+}
+
+// updateEntity updates an entity registry entry. A new helper's entity may reach the entity
+// registry only shortly after the create returns, so it retries for a while.
+func updateEntity(t *testing.T, c *client.HAClient, fields map[string]any) {
+	t.Helper()
+	var err error
+	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(200 * time.Millisecond) {
+		if err = c.WS.Command(context.Background(), "config/entity_registry/update", fields, nil); err == nil {
+			return
+		}
+	}
+	t.Fatal(err)
+}
+
+// setUpHiddenEntities creates an area with two input booleans that both have the friendly name
+// "Acc Hidden Lamp": input_boolean.acc_hidden_old is hidden by the user,
+// input_boolean.acc_hidden_new is not. It returns the area ID.
+func setUpHiddenEntities(t *testing.T) string {
+	t.Helper()
+	c := entitiesClient(t)
+	ctx := context.Background()
+
+	var area struct {
+		AreaID string `json:"area_id"`
+	}
+	if err := c.WS.Command(ctx, "config/area_registry/create", map[string]any{"name": "Acc Hidden Room"}, &area); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = c.WS.Command(context.Background(), "config/area_registry/delete", map[string]any{"area_id": area.AreaID}, nil)
+	})
+
+	booleans := client.Helpers(c.WS, "input_boolean")
+	for _, name := range []string{"Acc Hidden Old", "Acc Hidden New"} {
+		h, err := booleans.Create(ctx, map[string]any{"name": name})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = booleans.Delete(context.Background(), h.HelperID()) })
+	}
+	updateEntity(t, c, map[string]any{
+		"entity_id": "input_boolean.acc_hidden_old", "area_id": area.AreaID, "name": "Acc Hidden Lamp", "hidden_by": "user",
+	})
+	updateEntity(t, c, map[string]any{
+		"entity_id": "input_boolean.acc_hidden_new", "area_id": area.AreaID, "name": "Acc Hidden Lamp",
+	})
+	return area.AreaID
+}
+
+func TestAccEntitiesDataSourceHidden(t *testing.T) {
+	areaID := setUpHiddenEntities(t)
+	// sensor.acc_hidden_temp exists only in the state machine, so it has no registry entry.
+	c := entitiesClient(t)
+	if err := c.REST.Do(context.Background(), http.MethodPost, "states/sensor.acc_hidden_temp", map[string]any{
+		"state": "1", "attributes": map[string]any{"friendly_name": "Acc Hidden Temp"},
+	}, nil); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = c.REST.Do(context.Background(), http.MethodDelete, "states/sensor.acc_hidden_temp", nil, nil)
+	})
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: acctest.ProviderConfig + fmt.Sprintf(`
+data "homeassistant_entities" "visible" {
+  area         = %[1]q
+  name_pattern = "Acc Hidden Lamp"
+  hidden       = false
+}
+
+data "homeassistant_entities" "hidden" {
+  area         = %[1]q
+  name_pattern = "Acc Hidden Lamp"
+  hidden       = true
+}
+
+data "homeassistant_entities" "both" {
+  area         = %[1]q
+  name_pattern = "Acc Hidden Lamp"
+}
+
+data "homeassistant_entities" "unregistered" {
+  name_pattern = "Acc Hidden Temp"
+  hidden       = false
+}
+
+output "old_hidden" {
+  value = data.homeassistant_entities.both.entities["input_boolean.acc_hidden_old"].hidden
+}
+
+output "new_hidden" {
+  value = data.homeassistant_entities.both.entities["input_boolean.acc_hidden_new"].hidden
+}
+
+output "unregistered_hidden" {
+  value = data.homeassistant_entities.unregistered.entities["sensor.acc_hidden_temp"].hidden
+}
+`, areaID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					checkEntityIDs("visible", "input_boolean.acc_hidden_new"),
+					checkEntityIDs("hidden", "input_boolean.acc_hidden_old"),
+					checkEntityIDs("both", "input_boolean.acc_hidden_new", "input_boolean.acc_hidden_old"),
+					checkEntityIDs("unregistered", "sensor.acc_hidden_temp"),
+					resource.TestCheckOutput("old_hidden", "true"),
+					resource.TestCheckOutput("new_hidden", "false"),
+					resource.TestCheckOutput("unregistered_hidden", "false"),
+				),
+			},
+		},
+	})
 }
 
 func TestAccEntitiesDataSource(t *testing.T) {
