@@ -5,6 +5,13 @@ breaking changes may land in minor versions and are marked **Breaking** (ADR-001
 
 ## Unreleased
 
+- **Breaking:** `homeassistant_entity_settings` and `homeassistant_device_settings`:
+  `hidden = false` and `disabled = false` now mean "not hidden or disabled by the user". They
+  clear a flag the user set, but no longer clear one set by an integration, device, or config
+  entry, and destroy leaves a `false` flag alone. Before, create and destroy wrote `null` and
+  could re-enable a device that its config entry had disabled, or fail on an entity of a
+  disabled device. To enable something an integration disabled, change it in Home Assistant
+  (#39).
 - Data source `homeassistant_entities`: new `hidden` filter, and a `hidden` flag on each entry of
   `entities`, so lookups can skip hidden duplicates (#30).
 - `data.homeassistant_entities`: new `device_id` filter, for telling apart entities with the same

@@ -45,7 +45,7 @@ resource "homeassistant_device_settings" "hall_sensor" {
 ### Optional
 
 - `area_id` (String) ID of the device's area, e.g. `homeassistant_area.bedroom.id`. Its entities without an area of their own follow it.
-- `disabled` (Boolean) Whether the user disables the device, which also disables its entities. Reads `false` when it is enabled or disabled by its integration.
+- `disabled` (Boolean) Whether the user disables the device, which also disables its entities. Reads `false` when it is enabled or disabled by its integration or config entry. `false` enables a device the user disabled, but leaves one disabled by its integration or config entry disabled.
 - `labels` (Set of String) IDs of the labels on the device. When set, this is the complete list: labels added elsewhere are removed.
 - `name_by_user` (String) Name that overrides the integration's. Unsetting it goes back to the integration's name.
 - `timeouts` (Attributes) (see [below for nested schema](#nestedatt--timeouts))

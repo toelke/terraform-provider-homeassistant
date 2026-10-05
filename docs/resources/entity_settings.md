@@ -50,8 +50,8 @@ resource "homeassistant_entity_settings" "signal" {
 ### Optional
 
 - `area_id` (String) ID of the entity's area, e.g. `homeassistant_area.bedroom.id`. Unsetting it makes the entity inherit its device's area.
-- `disabled` (Boolean) Whether the user disables the entity. Reads `false` when it is enabled or disabled by its integration or device.
-- `hidden` (Boolean) Whether the user hides the entity. Reads `false` when it is visible or hidden by its integration.
+- `disabled` (Boolean) Whether the user disables the entity. Reads `false` when it is enabled or disabled by its integration or device. `false` enables an entity the user disabled, but leaves one disabled by its integration or device disabled.
+- `hidden` (Boolean) Whether the user hides the entity. Reads `false` when it is visible or hidden by its integration. `false` unhides an entity the user hid, but leaves one hidden by its integration hidden.
 - `icon` (String) Icon that overrides the integration's, e.g. `mdi:ceiling-light`.
 - `labels` (Set of String) IDs of the labels on the entity. When set, this is the complete list: labels added elsewhere are removed.
 - `name` (String) Name that overrides the integration's. Unsetting it goes back to the integration's name.

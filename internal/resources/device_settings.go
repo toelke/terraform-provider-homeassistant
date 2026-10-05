@@ -2,7 +2,6 @@ package resources
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -55,13 +54,6 @@ func (r *deviceSettingsResource) Metadata(_ context.Context, req resource.Metada
 }
 
 func (r *deviceSettingsResource) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	computed := func(description string) schema.StringAttribute {
-		return schema.StringAttribute{
-			Description:   description,
-			Computed:      true,
-			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
-		}
-	}
 	computedList := func(description string, elem attr.Type) schema.ListAttribute {
 		return schema.ListAttribute{
 			Description:   description,
@@ -102,14 +94,16 @@ func (r *deviceSettingsResource) Schema(ctx context.Context, _ resource.SchemaRe
 			},
 			"disabled": schema.BoolAttribute{
 				Description: "Whether the user disables the device, which also disables its " +
-					"entities. Reads `false` when it is enabled or disabled by its integration.",
+					"entities. Reads `false` when it is enabled or disabled by its integration or " +
+					"config entry. `false` enables a device the user disabled, but leaves one " +
+					"disabled by its integration or config entry disabled.",
 				Optional: true,
 			},
-			"name":         computed("Name the integration gives the device."),
-			"manufacturer": computed("Manufacturer, as the integration reports it."),
-			"model":        computed("Model, as the integration reports it."),
-			"sw_version":   computed("Software or firmware version."),
-			"hw_version":   computed("Hardware version."),
+			"name":         computedString("Name the integration gives the device."),
+			"manufacturer": computedString("Manufacturer, as the integration reports it."),
+			"model":        computedString("Model, as the integration reports it."),
+			"sw_version":   computedString("Software or firmware version."),
+			"hw_version":   computedString("Hardware version."),
 			"identifiers": computedList("Identifiers of the device, each a list such as "+
 				"`[\"hue\", \"00:17:88:01:...\"]`: the integration's domain, then its ID.",
 				types.ListType{ElemType: types.StringType}),
@@ -134,27 +128,31 @@ func (r *deviceSettingsResource) Configure(_ context.Context, req resource.Confi
 
 // changes returns the registry fields that turn from into to: those set in to that differ from
 // from, and those set only in from, reset to their defaults. Unset attributes are left out, so
-// only configured fields are ever written (ADR-0010).
+// only configured fields are ever written (ADR-0010). Disabled follows flagChange, so from must
+// hold its registry value where to sets it (withRegistryFlags).
 func (to deviceSettingsModel) changes(ctx context.Context, from deviceSettingsModel) (map[string]any, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	fields := map[string]any{}
-	set := func(key string, toV, fromV attr.Value, value func() any, reset any) {
-		switch {
-		case !toV.IsNull() && !toV.Equal(fromV):
-			fields[key] = value()
-		case toV.IsNull() && !fromV.IsNull():
-			fields[key] = reset
-		}
-	}
-	set("name_by_user", to.NameByUser, from.NameByUser, func() any { return to.NameByUser.ValueStringPointer() }, nil)
-	set("area_id", to.AreaID, from.AreaID, func() any { return to.AreaID.ValueStringPointer() }, nil)
-	set("labels", to.Labels, from.Labels, func() any {
+	fieldChange(fields, "name_by_user", to.NameByUser, from.NameByUser, func() any { return to.NameByUser.ValueStringPointer() }, nil)
+	fieldChange(fields, "area_id", to.AreaID, from.AreaID, func() any { return to.AreaID.ValueStringPointer() }, nil)
+	fieldChange(fields, "labels", to.Labels, from.Labels, func() any {
 		labels := []string{}
 		diags.Append(to.Labels.ElementsAs(ctx, &labels, false)...)
 		return labels
 	}, []string{})
-	set("disabled_by", to.Disabled, from.Disabled, func() any { return byUser(to.Disabled.ValueBool()) }, nil)
+	flagChange(fields, "disabled_by", to.Disabled, from.Disabled)
 	return fields, diags
+}
+
+// needsRegistryFlags reports whether withRegistryFlags needs the device to turn from into to.
+func (to deviceSettingsModel) needsRegistryFlags(from deviceSettingsModel) bool {
+	return needsRegistryFlag(to.Disabled, from.Disabled)
+}
+
+// withRegistryFlags returns from with the flag that to sets and from does not taken from d.
+func (to deviceSettingsModel) withRegistryFlags(from deviceSettingsModel, d client.Device) deviceSettingsModel {
+	from.Disabled = registryFlag(to.Disabled, from.Disabled, d.DisabledBy)
+	return from
 }
 
 // refresh reads d into m: the computed attributes, and the settable ones that m manages.
@@ -173,7 +171,7 @@ func (m *deviceSettingsModel) refresh(ctx context.Context, d client.Device) diag
 		diags.Append(labelDiags...)
 	}
 	if !m.Disabled.IsNull() {
-		m.Disabled = types.BoolValue(d.DisabledBy != nil && *d.DisabledBy == "user")
+		m.Disabled = types.BoolValue(userFlag(d.DisabledBy))
 	}
 	return diags
 }
@@ -196,21 +194,11 @@ func (m *deviceSettingsModel) computedFrom(ctx context.Context, d client.Device)
 
 // awaitDevice polls the registry until deviceID is in it, for at most timeout.
 func (r *deviceSettingsResource) awaitDevice(ctx context.Context, deviceID string, timeout time.Duration) (client.Device, error) {
-	waitCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	var device client.Device
-	err := waitFor(waitCtx, func(ctx context.Context) (bool, error) {
-		var ok bool
-		var err error
-		device, ok, err = r.devices.Get(ctx, deviceID)
-		return ok, err
-	})
-	if err != nil && errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
-		return device, fmt.Errorf("device %s did not appear in the device registry within %s.\n\n"+
-			"Check that the device ID is correct and that the integration providing it is set up. "+
-			"If the integration needs longer, raise `timeouts.create`", deviceID, timeout)
-	}
-	return device, err
+	return awaitRegistry(ctx, timeout, func(ctx context.Context) (client.Device, bool, error) {
+		return r.devices.Get(ctx, deviceID)
+	}, fmt.Errorf("device %s did not appear in the device registry within %s.\n\n"+
+		"Check that the device ID is correct and that the integration providing it is set up. "+
+		"If the integration needs longer, raise `timeouts.create`", deviceID, timeout))
 }
 
 func (r *deviceSettingsResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -221,8 +209,6 @@ func (r *deviceSettingsResource) Create(ctx context.Context, req resource.Create
 	}
 	timeout, diags := plan.Timeouts.Create(ctx, defaultSettingsCreateTimeout)
 	resp.Diagnostics.Append(diags...)
-	fields, diags := plan.changes(ctx, deviceSettingsModel{})
-	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -231,6 +217,11 @@ func (r *deviceSettingsResource) Create(ctx context.Context, req resource.Create
 	device, err := r.awaitDevice(ctx, deviceID, timeout)
 	if err != nil {
 		resp.Diagnostics.AddError("Waiting for device", client.ErrorDetail(err))
+		return
+	}
+	fields, diags := plan.changes(ctx, plan.withRegistryFlags(deviceSettingsModel{}, device))
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 	if len(fields) > 0 {
@@ -272,14 +263,27 @@ func (r *deviceSettingsResource) Update(ctx context.Context, req resource.Update
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	fields, diags := plan.changes(ctx, state)
+	deviceID := plan.DeviceID.ValueString()
+	from := state
+	if plan.needsRegistryFlags(state) {
+		device, ok, err := r.devices.Get(ctx, deviceID)
+		if err == nil && !ok {
+			err = fmt.Errorf("device %s is not in the device registry", deviceID)
+		}
+		if err != nil {
+			resp.Diagnostics.AddError("Reading device settings", client.ErrorDetail(err))
+			return
+		}
+		from = plan.withRegistryFlags(state, device)
+	}
+	fields, diags := plan.changes(ctx, from)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	if len(fields) > 0 {
-		device, err := r.devices.Update(ctx, plan.DeviceID.ValueString(), fields)
+		device, err := r.devices.Update(ctx, deviceID, fields)
 		if err != nil {
 			resp.Diagnostics.AddError("Updating device settings", client.ErrorDetail(err))
 			return
@@ -303,13 +307,11 @@ func (r *deviceSettingsResource) Delete(ctx context.Context, req resource.Delete
 
 	deviceID := state.DeviceID.ValueString()
 	_, err := r.devices.Update(ctx, deviceID, fields)
-	var wsErr *client.WSError
-	if errors.As(err, &wsErr) {
-		// A device that is gone has nothing left to reset.
-		if _, ok, getErr := r.devices.Get(ctx, deviceID); getErr == nil && !ok {
-			return
-		}
-	}
+	// A device that is gone has nothing left to reset.
+	err = client.IgnoreGone(ctx, err, func(ctx context.Context) (bool, error) {
+		_, ok, err := r.devices.Get(ctx, deviceID)
+		return ok, err
+	})
 	if err != nil {
 		resp.Diagnostics.AddError("Resetting device settings", client.ErrorDetail(err))
 	}

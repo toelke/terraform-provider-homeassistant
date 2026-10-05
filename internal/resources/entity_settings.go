@@ -2,12 +2,10 @@ package resources
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -56,13 +54,6 @@ func (r *entitySettingsResource) Metadata(_ context.Context, req resource.Metada
 }
 
 func (r *entitySettingsResource) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	computed := func(description string) schema.StringAttribute {
-		return schema.StringAttribute{
-			Description:   description,
-			Computed:      true,
-			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
-		}
-	}
 	resp.Schema = schema.Schema{
 		Description: "Settings of an entity that an integration owns, as in the entity settings " +
 			"dialog: name, icon, area, labels, hidden, disabled. Only the attributes you set are " +
@@ -100,17 +91,19 @@ func (r *entitySettingsResource) Schema(ctx context.Context, _ resource.SchemaRe
 			},
 			"hidden": schema.BoolAttribute{
 				Description: "Whether the user hides the entity. Reads `false` when it is " +
-					"visible or hidden by its integration.",
+					"visible or hidden by its integration. `false` unhides an entity the user " +
+					"hid, but leaves one hidden by its integration hidden.",
 				Optional: true,
 			},
 			"disabled": schema.BoolAttribute{
 				Description: "Whether the user disables the entity. Reads `false` when it is " +
-					"enabled or disabled by its integration or device.",
+					"enabled or disabled by its integration or device. `false` enables an entity " +
+					"the user disabled, but leaves one disabled by its integration or device disabled.",
 				Optional: true,
 			},
-			"platform":      computed("Integration that owns the entity, e.g. `hue`."),
-			"device_id":     computed("ID of the entity's device, if it has one."),
-			"original_name": computed("Name the integration gives the entity."),
+			"platform":      computedString("Integration that owns the entity, e.g. `hue`."),
+			"device_id":     computedString("ID of the entity's device, if it has one."),
+			"original_name": computedString("Name the integration gives the entity."),
 			"timeouts":      timeouts.Attributes(ctx, timeouts.Opts{Create: true}),
 		},
 	}
@@ -129,41 +122,36 @@ func (r *entitySettingsResource) Configure(_ context.Context, req resource.Confi
 	r.entities = client.Entities(c.WS)
 }
 
-// byUser maps hidden and disabled to `hidden_by` and `disabled_by`. The provider only writes
-// `"user"` or null.
-func byUser(set bool) *string {
-	if !set {
-		return nil
-	}
-	user := "user"
-	return &user
-}
-
 // changes returns the registry fields that turn from into to: those set in to that differ from
 // from, and those set only in from, reset to their defaults. Unset attributes are left out, so
-// only configured fields are ever written (ADR-0010).
+// only configured fields are ever written (ADR-0010). Hidden and disabled follow flagChange, so
+// from must hold their registry values where to sets them (withRegistryFlags).
 func (to entitySettingsModel) changes(ctx context.Context, from entitySettingsModel) (map[string]any, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	fields := map[string]any{}
-	set := func(key string, toV, fromV attr.Value, value func() any, reset any) {
-		switch {
-		case !toV.IsNull() && !toV.Equal(fromV):
-			fields[key] = value()
-		case toV.IsNull() && !fromV.IsNull():
-			fields[key] = reset
-		}
-	}
-	set("name", to.Name, from.Name, func() any { return to.Name.ValueStringPointer() }, nil)
-	set("icon", to.Icon, from.Icon, func() any { return to.Icon.ValueStringPointer() }, nil)
-	set("area_id", to.AreaID, from.AreaID, func() any { return to.AreaID.ValueStringPointer() }, nil)
-	set("labels", to.Labels, from.Labels, func() any {
+	fieldChange(fields, "name", to.Name, from.Name, func() any { return to.Name.ValueStringPointer() }, nil)
+	fieldChange(fields, "icon", to.Icon, from.Icon, func() any { return to.Icon.ValueStringPointer() }, nil)
+	fieldChange(fields, "area_id", to.AreaID, from.AreaID, func() any { return to.AreaID.ValueStringPointer() }, nil)
+	fieldChange(fields, "labels", to.Labels, from.Labels, func() any {
 		labels := []string{}
 		diags.Append(to.Labels.ElementsAs(ctx, &labels, false)...)
 		return labels
 	}, []string{})
-	set("hidden_by", to.Hidden, from.Hidden, func() any { return byUser(to.Hidden.ValueBool()) }, nil)
-	set("disabled_by", to.Disabled, from.Disabled, func() any { return byUser(to.Disabled.ValueBool()) }, nil)
+	flagChange(fields, "hidden_by", to.Hidden, from.Hidden)
+	flagChange(fields, "disabled_by", to.Disabled, from.Disabled)
 	return fields, diags
+}
+
+// needsRegistryFlags reports whether withRegistryFlags needs the entry to turn from into to.
+func (to entitySettingsModel) needsRegistryFlags(from entitySettingsModel) bool {
+	return needsRegistryFlag(to.Hidden, from.Hidden) || needsRegistryFlag(to.Disabled, from.Disabled)
+}
+
+// withRegistryFlags returns from with the flags that to sets and from does not taken from e.
+func (to entitySettingsModel) withRegistryFlags(from entitySettingsModel, e client.EntityEntry) entitySettingsModel {
+	from.Hidden = registryFlag(to.Hidden, from.Hidden, e.HiddenBy)
+	from.Disabled = registryFlag(to.Disabled, from.Disabled, e.DisabledBy)
+	return from
 }
 
 // refresh reads e into m: the computed attributes, and the settable ones that m manages.
@@ -183,12 +171,11 @@ func (m *entitySettingsModel) refresh(ctx context.Context, e client.EntityEntry)
 	if !m.Labels.IsNull() {
 		m.Labels, diags = types.SetValueFrom(ctx, types.StringType, append([]string{}, e.Labels...))
 	}
-	isUser := func(by *string) bool { return by != nil && *by == "user" }
 	if !m.Hidden.IsNull() {
-		m.Hidden = types.BoolValue(isUser(e.HiddenBy))
+		m.Hidden = types.BoolValue(userFlag(e.HiddenBy))
 	}
 	if !m.Disabled.IsNull() {
-		m.Disabled = types.BoolValue(isUser(e.DisabledBy))
+		m.Disabled = types.BoolValue(userFlag(e.DisabledBy))
 	}
 	return diags
 }
@@ -202,22 +189,12 @@ func (m *entitySettingsModel) computedFrom(e client.EntityEntry) {
 
 // awaitEntity polls the registry until entityID is in it, for at most timeout.
 func (r *entitySettingsResource) awaitEntity(ctx context.Context, entityID string, timeout time.Duration) (client.EntityEntry, error) {
-	waitCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	var entry client.EntityEntry
-	err := waitFor(waitCtx, func(ctx context.Context) (bool, error) {
-		var ok bool
-		var err error
-		entry, ok, err = r.entities.Get(ctx, entityID)
-		return ok, err
-	})
-	if err != nil && errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
-		return entry, fmt.Errorf("entity %s did not appear in the entity registry within %s.\n\n"+
-			"Check that the entity ID is correct and that the integration providing it is set up. "+
-			"Entities without a unique ID are never in the registry and cannot be managed. If the "+
-			"integration needs longer, raise `timeouts.create`", entityID, timeout)
-	}
-	return entry, err
+	return awaitRegistry(ctx, timeout, func(ctx context.Context) (client.EntityEntry, bool, error) {
+		return r.entities.Get(ctx, entityID)
+	}, fmt.Errorf("entity %s did not appear in the entity registry within %s.\n\n"+
+		"Check that the entity ID is correct and that the integration providing it is set up. "+
+		"Entities without a unique ID are never in the registry and cannot be managed. If the "+
+		"integration needs longer, raise `timeouts.create`", entityID, timeout))
 }
 
 func (r *entitySettingsResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -228,8 +205,6 @@ func (r *entitySettingsResource) Create(ctx context.Context, req resource.Create
 	}
 	timeout, diags := plan.Timeouts.Create(ctx, defaultSettingsCreateTimeout)
 	resp.Diagnostics.Append(diags...)
-	fields, diags := plan.changes(ctx, entitySettingsModel{})
-	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -238,6 +213,11 @@ func (r *entitySettingsResource) Create(ctx context.Context, req resource.Create
 	entry, err := r.awaitEntity(ctx, entityID, timeout)
 	if err != nil {
 		resp.Diagnostics.AddError("Waiting for entity", client.ErrorDetail(err))
+		return
+	}
+	fields, diags := plan.changes(ctx, plan.withRegistryFlags(entitySettingsModel{}, entry))
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
 	if len(fields) > 0 {
@@ -279,14 +259,27 @@ func (r *entitySettingsResource) Update(ctx context.Context, req resource.Update
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	fields, diags := plan.changes(ctx, state)
+	entityID := plan.EntityID.ValueString()
+	from := state
+	if plan.needsRegistryFlags(state) {
+		entry, ok, err := r.entities.Get(ctx, entityID)
+		if err == nil && !ok {
+			err = fmt.Errorf("entity %s is not in the entity registry", entityID)
+		}
+		if err != nil {
+			resp.Diagnostics.AddError("Reading entity settings", client.ErrorDetail(err))
+			return
+		}
+		from = plan.withRegistryFlags(state, entry)
+	}
+	fields, diags := plan.changes(ctx, from)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	if len(fields) > 0 {
-		entry, err := r.entities.Update(ctx, plan.EntityID.ValueString(), fields)
+		entry, err := r.entities.Update(ctx, entityID, fields)
 		if err != nil {
 			resp.Diagnostics.AddError("Updating entity settings", client.ErrorDetail(err))
 			return
@@ -310,13 +303,11 @@ func (r *entitySettingsResource) Delete(ctx context.Context, req resource.Delete
 
 	entityID := state.EntityID.ValueString()
 	_, err := r.entities.Update(ctx, entityID, fields)
-	var wsErr *client.WSError
-	if errors.As(err, &wsErr) {
-		// An entity that is gone has nothing left to reset.
-		if _, ok, getErr := r.entities.Get(ctx, entityID); getErr == nil && !ok {
-			return
-		}
-	}
+	// An entity that is gone has nothing left to reset.
+	err = client.IgnoreGone(ctx, err, func(ctx context.Context) (bool, error) {
+		_, ok, err := r.entities.Get(ctx, entityID)
+		return ok, err
+	})
 	if err != nil {
 		resp.Diagnostics.AddError("Resetting entity settings", client.ErrorDetail(err))
 	}

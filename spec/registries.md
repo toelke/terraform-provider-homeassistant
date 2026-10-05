@@ -80,7 +80,8 @@ These edit registry entries owned by integrations. They are **field-granular**:
   suggests checking the ID, the integration, and the timeout.
 - **Update:** send the changed fields. A field removed from config is reset to its default.
 - **Delete:** reset the configured fields to defaults (`null`, or `[]` for labels). If the entry
-  is gone, do nothing.
+  is gone, do nothing. A `hidden` or `disabled` that is `false` in state is left alone: there is
+  nothing of the user's to reset.
 - **Read:** if the entry is missing → remove from state. Set attributes are refreshed, so a
   change made elsewhere to a configured field shows as drift; unset ones stay null.
 - **Import:** by ID. The imported state manages no field; the first plan sets the configured
@@ -107,11 +108,15 @@ resource "homeassistant_entity_settings" "ceiling" {
 | `icon` | string | `null` |
 | `area_id` | string | `null` (inherits the device's area) |
 | `labels` | set(string) | `[]` |
-| `hidden` | bool → `hidden_by: "user"` or `null` | `null` |
-| `disabled` | bool → `disabled_by: "user"` or `null` | `null` |
+| `hidden` | bool → `hidden_by: "user"`, or `null` if it was `"user"` | `null` if `true` |
+| `disabled` | bool → `disabled_by: "user"`, or `null` if it was `"user"` | `null` if `true` |
 
-`hidden_by` and `disabled_by` can also be set by integrations. The provider only writes `"user"`
-or `null`, and maps the read-back value `"user"` to `true` and anything else to `false`.
+`hidden_by` and `disabled_by` can also be set by integrations, devices, or config entries. The
+provider maps the read-back value `"user"` to `true` and anything else to `false`, so `false`
+means "not hidden or disabled by the user". It writes `"user"` for `true`, and writes `null` only
+to clear a `"user"` value: a `false` never clears a flag that something else set. When `false`
+becomes managed (create, or added to config), the provider reads the entry to find out whether
+the user set the flag.
 
 | Computed | |
 |---|---|
@@ -130,11 +135,11 @@ ID and import ID: `device_id`.
 | `name_by_user` | string | `null` |
 | `area_id` | string | `null` |
 | `labels` | set(string) | `[]` |
-| `disabled` | bool → `disabled_by: "user"` or `null` | `null` |
+| `disabled` | bool → `disabled_by: "user"`, or `null` if it was `"user"` | `null` if `true` |
 
 As for entities, `disabled_by` can also be set by integrations or config entries; the provider
-only writes `"user"` or `null` and reads `"user"` as `true`. Disabling a device disables its
-entities too.
+reads `"user"` as `true`, and `false` only clears a `"user"` value. Disabling a device disables
+its entities too.
 
 | Computed |
 |---|

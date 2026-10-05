@@ -59,10 +59,19 @@ func (r Registry[T]) Update(ctx context.Context, id string, fields map[string]an
 // Delete deletes the object with the given ID. An object that is already gone is not an error.
 func (r Registry[T]) Delete(ctx context.Context, id string) error {
 	err := r.ws.Command(ctx, r.prefix+"/delete", map[string]any{r.key: id}, nil)
+	return IgnoreGone(ctx, err, func(ctx context.Context) (bool, error) {
+		_, ok, err := r.Get(ctx, id)
+		return ok, err
+	})
+}
+
+// IgnoreGone returns nil if err is an error from HA and exists then reports that the object the
+// command was about is gone, and err otherwise. HA reports a missing ID as a generic error, so
+// only asking again tells a missing object apart from a real failure.
+func IgnoreGone(ctx context.Context, err error, exists func(context.Context) (bool, error)) error {
 	var wsErr *WSError
 	if errors.As(err, &wsErr) {
-		// HA reports a missing ID as a generic error, so check whether the object is gone.
-		if _, ok, getErr := r.Get(ctx, id); getErr == nil && !ok {
+		if ok, getErr := exists(ctx); getErr == nil && !ok {
 			return nil
 		}
 	}
