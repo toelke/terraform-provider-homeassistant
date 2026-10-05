@@ -269,3 +269,47 @@ resource "homeassistant_automation" "test" {
 		},
 	})
 }
+
+// TestAccAutomation_builderFunctions builds an automation config with the trigger, condition and
+// action builder functions, so the arguments pass through OpenTofu's own type conversion.
+func TestAccAutomation_builderFunctions(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		CheckDestroy:             checkAutomationGone(t, "acc_functions"),
+		Steps: []resource.TestStep{{
+			Config: acctest.ProviderConfig + `
+resource "homeassistant_automation" "test" {
+  id = "acc_functions"
+  config = {
+    alias = "Acc Functions"
+    triggers = [
+      provider::homeassistant::state_trigger(["sun.sun"], { "for" = { minutes = 5 }, to = "below_horizon", from = null }),
+      provider::homeassistant::numeric_state_trigger("sun.sun", { attribute = "elevation", below = -6 }),
+      provider::homeassistant::time_trigger("07:30:00"),
+    ]
+    conditions = [
+      provider::homeassistant::state_condition("sun.sun", ["below_horizon", "above_horizon"]),
+      provider::homeassistant::time_condition({ after = "22:00:00" }),
+    ]
+    actions = [
+      provider::homeassistant::action("persistent_notification.create", { data = { message = "Dusk" } }),
+      provider::homeassistant::delay(1.5),
+    ]
+  }
+}
+`,
+			Check: checkAutomationConfig(t, "acc_functions", `{"alias":"Acc Functions",
+				"triggers":[
+					{"trigger":"state","entity_id":["sun.sun"],"to":"below_horizon","for":{"minutes":5}},
+					{"trigger":"numeric_state","entity_id":"sun.sun","attribute":"elevation","below":-6},
+					{"trigger":"time","at":"07:30:00"}],
+				"conditions":[
+					{"condition":"state","entity_id":"sun.sun","state":["below_horizon","above_horizon"]},
+					{"condition":"time","after":"22:00:00"}],
+				"actions":[
+					{"action":"persistent_notification.create","data":{"message":"Dusk"}},
+					{"delay":1.5}]}`),
+		}},
+	})
+}

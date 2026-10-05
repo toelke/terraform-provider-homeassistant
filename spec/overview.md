@@ -92,7 +92,7 @@ Which operation uses which transport:
 | `homeassistant_integration` | `entry_id` | [integrations.md](integrations.md) |
 | `homeassistant_esphome`, `homeassistant_mqtt` | `entry_id` | [integrations.md](integrations.md) |
 
-### Functions (later, ADR-0007)
+### Functions (ADR-0007)
 
 Builder functions under `provider::homeassistant::*`, returning plain objects for dynamic config.
 See [functions.md](functions.md).
@@ -131,7 +131,7 @@ internal/
   dyntype/          dynamic-config custom type + normalisation (ADR-0006)
   resources/        one file per resource family
   datasources/
-  functions/        builder functions (later)
+  functions/        builder functions
   acctest/          testcontainers HA + headless onboarding helpers
 examples/           tfplugindocs examples (one per resource/data source/function)
 templates/          tfplugindocs templates where the defaults are insufficient

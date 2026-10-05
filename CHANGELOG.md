@@ -15,6 +15,8 @@ breaking changes may land in minor versions and are marked **Breaking** (ADR-001
 - Resource `homeassistant_input_boolean`, with import.
 - Provider functions `tile_card`, `entities_card`, `heading_card` and `grid_section`, which build
   dashboard cards and sections for `homeassistant_dashboard`.
+- Provider functions `state_trigger`, `numeric_state_trigger`, `time_trigger`, `state_condition`,
+  `time_condition`, `action` and `delay`, which build automation and script steps.
 - Resource `homeassistant_area`, with import.
 - Resource `homeassistant_script`, with import. `config` takes the script as an object, e.g. from
   `yamldecode(file(...))`; `entity_id` is `script.<id>`.

@@ -1,0 +1,4 @@
+{
+  "entity_id": "binary_sensor.motion",
+  "trigger": "state"
+}

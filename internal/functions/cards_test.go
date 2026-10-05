@@ -49,8 +49,7 @@ func run(t *testing.T, f function.Function, args ...attr.Value) function.RunResp
 	return resp
 }
 
-// TestGolden compares each function's result with testdata/<name>.json. Run with -update to
-// rewrite the files.
+// TestGolden compares each card function's result with testdata/<name>.json.
 func TestGolden(t *testing.T) {
 	tests := []struct {
 		name string
@@ -86,35 +85,39 @@ func TestGolden(t *testing.T) {
 		}},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			resp := run(t, tt.f, tt.args(t)...)
-			if resp.Error != nil {
-				t.Fatal(resp.Error)
-			}
-			g, err := dyntype.GoValue(resp.Result.Value())
-			if err != nil {
-				t.Fatal(err)
-			}
-			got, err := json.MarshalIndent(g, "", "  ")
-			if err != nil {
-				t.Fatal(err)
-			}
-			got = append(got, '\n')
+		t.Run(tt.name, func(t *testing.T) { checkGolden(t, tt.name, run(t, tt.f, tt.args(t)...)) })
+	}
+}
 
-			path := filepath.Join("testdata", tt.name+".json")
-			if *update {
-				if err := os.WriteFile(path, got, 0o644); err != nil {
-					t.Fatal(err)
-				}
-			}
-			want, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !bytes.Equal(got, want) {
-				t.Errorf("result differs from %s:\ngot:\n%s\nwant:\n%s", path, got, want)
-			}
-		})
+// checkGolden fails unless the function call succeeded with the result in testdata/<name>.json.
+// Run with -update to rewrite the file.
+func checkGolden(t *testing.T, name string, resp function.RunResponse) {
+	t.Helper()
+	if resp.Error != nil {
+		t.Fatal(resp.Error)
+	}
+	g, err := dyntype.GoValue(resp.Result.Value())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := json.MarshalIndent(g, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got = append(got, '\n')
+
+	path := filepath.Join("testdata", name+".json")
+	if *update {
+		if err := os.WriteFile(path, got, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Errorf("result differs from %s:\ngot:\n%s\nwant:\n%s", path, got, want)
 	}
 }
 
@@ -155,17 +158,21 @@ func TestInvalidArguments(t *testing.T) {
 		}, 1, "options.heading must be a string"},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			resp := run(t, tt.f, tt.args(t)...)
-			if resp.Error == nil {
-				t.Fatalf("no error; result %v", resp.Result.Value())
-			}
-			if resp.Error.FunctionArgument == nil || *resp.Error.FunctionArgument != tt.position {
-				t.Errorf("error is at argument %v, want %d: %s", resp.Error.FunctionArgument, tt.position, resp.Error)
-			}
-			if !strings.Contains(resp.Error.Text, tt.message) {
-				t.Errorf("error %q does not contain %q", resp.Error.Text, tt.message)
-			}
-		})
+		t.Run(tt.name, func(t *testing.T) { checkInvalid(t, run(t, tt.f, tt.args(t)...), tt.position, tt.message) })
+	}
+}
+
+// checkInvalid fails unless the function call failed at argument position with an error that
+// contains message.
+func checkInvalid(t *testing.T, resp function.RunResponse, position int64, message string) {
+	t.Helper()
+	if resp.Error == nil {
+		t.Fatalf("no error; result %v", resp.Result.Value())
+	}
+	if resp.Error.FunctionArgument == nil || *resp.Error.FunctionArgument != position {
+		t.Errorf("error is at argument %v, want %d: %s", resp.Error.FunctionArgument, position, resp.Error)
+	}
+	if !strings.Contains(resp.Error.Text, message) {
+		t.Errorf("error %q does not contain %q", resp.Error.Text, message)
 	}
 }

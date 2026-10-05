@@ -1,0 +1,11 @@
+{
+  "entity_id": [
+    "binary_sensor.hall",
+    "binary_sensor.porch"
+  ],
+  "for": {
+    "minutes": 5
+  },
+  "to": "on",
+  "trigger": "state"
+}

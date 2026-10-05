@@ -1,0 +1,5 @@
+{
+  "condition": "state",
+  "entity_id": "person.alice",
+  "state": "home"
+}

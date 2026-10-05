@@ -1,0 +1,14 @@
+{
+  "at": [
+    "input_datetime.wake_up",
+    {
+      "entity_id": "sensor.phone_next_alarm",
+      "offset": "-00:10:00"
+    }
+  ],
+  "trigger": "time",
+  "weekday": [
+    "mon",
+    "tue"
+  ]
+}
