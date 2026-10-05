@@ -1,0 +1,14 @@
+---
+alias: "${room}: window open in the cold"
+description: ''
+use_blueprint:
+  # the blueprint must already be in Home Assistant, at blueprints/automation/<path>
+  path: cold_window_alert.yaml
+  input:
+    temperature_sensors:
+    - ${temperature}
+    opening_sensors:
+    - ${window}
+%{ for k, v in inputs ~}
+    ${k}: ${jsonencode(v)}
+%{ endfor ~}

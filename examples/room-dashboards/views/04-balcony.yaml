@@ -1,0 +1,23 @@
+---
+title: Balcony
+path: balcony
+icon: mdi:solar-power-variant
+type: panel
+subview: true
+cards:
+- type: grid
+  square: false
+  columns: 2
+  cards:
+  - type: statistics-graph
+    entities:
+    - ${e.solar_power}
+    chart_type: line
+    period: hour
+    days_to_show: 1
+    stat_types:
+    - mean
+    - min
+    - max
+  - type: entity
+    entity: ${e.solar_power}

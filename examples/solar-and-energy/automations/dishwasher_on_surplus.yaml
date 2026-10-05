@@ -1,0 +1,48 @@
+---
+id: dishwasher_on_surplus
+alias: 'Dishwasher: start on surplus power'
+description: Starts the eco program once the house exports power to the grid for a minute, or at 14:30 at the latest, if the dishwasher allows a remote start
+triggers:
+- trigger: numeric_state
+  entity_id: ${e.grid_power}
+  below: -50
+  for:
+    minutes: 1
+  id: surplus
+- trigger: time
+  at: '14:30:00'
+  id: latest
+- trigger: time
+  at: '00:00:00'
+  id: reset
+conditions: []
+actions:
+- choose:
+  - conditions:
+    - condition: trigger
+      id: reset
+    sequence:
+    - action: input_boolean.turn_off
+      target:
+        entity_id: ${e.dishwasher_started}
+  - conditions:
+    - condition: trigger
+      id:
+      - surplus
+      - latest
+    - condition: state
+      entity_id: ${e.dishwasher_remote}
+      state: 'on'
+    - condition: state
+      entity_id: ${e.dishwasher_started}
+      state: 'off'
+    sequence:
+    - action: input_boolean.turn_on
+      target:
+        entity_id: ${e.dishwasher_started}
+    - action: select.select_option
+      target:
+        entity_id: ${e.dishwasher_program}
+      data:
+        option: Eco50
+mode: single

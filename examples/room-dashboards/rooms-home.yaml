@@ -1,0 +1,21 @@
+---
+title: Home
+path: home
+type: panel
+cards:
+- type: grid
+  square: false
+  columns: 4
+  cards:
+  - type: button
+    name: Tablet view
+    icon: mdi:arrow-left
+    show_name: true
+    show_icon: true
+    tap_action:
+      action: navigate
+      navigation_path: /wall-tablet/0
+  # one button per file in views/, see main.tf; JSON is valid YAML
+%{ for b in room_buttons ~}
+  - ${jsonencode(b)}
+%{ endfor ~}

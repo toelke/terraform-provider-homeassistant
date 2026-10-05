@@ -1,0 +1,17 @@
+---
+id: dishwasher_done
+alias: 'Dishwasher: done'
+description: Adds "Empty the dishwasher" to the household to-do list when a program finishes
+triggers:
+- trigger: state
+  entity_id: ${e.dishwasher_state}
+  from: Run
+conditions: []
+actions:
+- action: todo.add_item
+  target:
+    entity_id: ${e.household_todo}
+  data:
+    item: Empty the dishwasher
+    due_date: '{{ now().date() }}'
+mode: single

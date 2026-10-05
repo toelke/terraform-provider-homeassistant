@@ -1,0 +1,40 @@
+---
+id: solar_washing_machine
+alias: 'Solar: good time for the washing machine'
+description: On laundry days, suggests starting the washing machine once the balcony panels deliver over 300 W, at most once a day
+triggers:
+- trigger: numeric_state
+  entity_id: ${e.solar_power}
+  above: 300
+  for:
+    minutes: 1
+  id: send
+- trigger: time
+  at: '00:00:00'
+  id: reset
+conditions: []
+actions:
+- choose:
+  - conditions:
+    - condition: trigger
+      id: send
+    - condition: time
+      weekday: ${jsonencode(laundry_days)}
+    - condition: state
+      entity_id: ${e.washer_suggested}
+      state: 'off'
+    sequence:
+    - action: input_boolean.turn_on
+      target:
+        entity_id: ${e.washer_suggested}
+    - action: ${notify_action}
+      data:
+        message: Now would be a good time to start the washing machine and use solar power.
+  - conditions:
+    - condition: trigger
+      id: reset
+    sequence:
+    - action: input_boolean.turn_off
+      target:
+        entity_id: ${e.washer_suggested}
+mode: single

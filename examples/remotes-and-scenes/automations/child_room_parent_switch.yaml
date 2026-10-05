@@ -1,0 +1,32 @@
+---
+# An Aqara wireless double switch next to the child's door, through a blueprint that maps its
+# Zigbee2MQTT actions to action sequences. The blueprint must already be in Home Assistant.
+id: child_room_parent_switch
+alias: "Child's room: parents' switch"
+description: 'Left: lock and lights off; right: unlock and lights on; double press: blinds down or up'
+use_blueprint:
+  path: aqara_double_switch_z2m.yaml
+  input:
+    topic: ${remotes.child_room_door}
+    action_to_run_left:
+    - action: input_boolean.turn_on
+      target:
+        entity_id: ${e.child_room_light_lock}
+    - action: light.turn_off
+      target:
+        area_id: child_room
+    action_to_run_right:
+    - action: input_boolean.turn_off
+      target:
+        entity_id: ${e.child_room_light_lock}
+    - action: light.turn_on
+      target:
+        area_id: child_room
+    action_to_run_left_double:
+    - action: cover.close_cover
+      target:
+        area_id: child_room
+    action_to_run_right_double:
+    - action: cover.open_cover
+      target:
+        area_id: child_room

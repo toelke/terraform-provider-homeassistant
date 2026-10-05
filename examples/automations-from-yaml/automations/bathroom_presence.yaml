@@ -1,0 +1,33 @@
+---
+id: bathroom_presence
+alias: 'Bathroom: light follows presence'
+description: Turns the ceiling light on and off with the mmWave presence sensor
+triggers:
+- trigger: state
+  entity_id: ${e.bathroom_presence}
+  from: 'off'
+  to: 'on'
+  id: 'on'
+- trigger: state
+  entity_id: ${e.bathroom_presence}
+  from: 'on'
+  to: 'off'
+  id: 'off'
+conditions: []
+actions:
+- choose:
+  - conditions:
+    - condition: trigger
+      id: 'on'
+    sequence:
+    - action: light.turn_on
+      target:
+        entity_id: ${e.bathroom_ceiling}
+  - conditions:
+    - condition: trigger
+      id: 'off'
+    sequence:
+    - action: light.turn_off
+      target:
+        entity_id: ${e.bathroom_ceiling}
+mode: single

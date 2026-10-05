@@ -1,0 +1,60 @@
+---
+# IKEA Styrbar, read straight from Zigbee2MQTT with MQTT triggers
+id: living_room_styrbar
+alias: 'Living room: Styrbar remote'
+description: 'On: TV scene; right: bright; hold right: string lights off; left: piano lamp; hold left: Christmas on/off'
+triggers:
+%{ for id, payload in { on = "on", right = "arrow_right_click", right_hold = "arrow_right_hold", left = "arrow_left_click", left_hold = "arrow_left_hold" } ~}
+- trigger: mqtt
+  topic: ${remotes.living_room}
+  payload: '${payload}'
+  id: '${id}'
+%{ endfor ~}
+conditions: []
+actions:
+- choose:
+  - conditions:
+    - condition: trigger
+      id: 'on'
+    sequence:
+    - action: scene.turn_on
+      target:
+        entity_id: ${e.scene_tv}
+  - conditions:
+    - condition: trigger
+      id: right
+    sequence:
+    - action: scene.turn_on
+      target:
+        entity_id: ${e.scene_bright}
+  - conditions:
+    - condition: trigger
+      id: right_hold
+    sequence:
+    - action: light.turn_off
+      target:
+        entity_id: ${e.string_lights}
+  - conditions:
+    - condition: trigger
+      id: left
+    sequence:
+    - action: light.toggle
+      target:
+        entity_id: ${e.piano_lamp}
+  - conditions:
+    - condition: trigger
+      id: left_hold
+    sequence:
+    - if:
+      - condition: state
+        entity_id: ${e.christmas_tree}
+        state: 'off'
+      then:
+      - action: scene.turn_on
+        target:
+          entity_id: ${e.scene_christmas}
+      else:
+      - action: light.turn_off
+        target:
+          entity_id: ${e.christmas_tree}
+mode: single

@@ -1,0 +1,26 @@
+---
+id: christmas
+name: Christmas
+icon: mdi:pine-tree
+entities:
+  ${e.string_light_a}:
+    state: 'on'
+    brightness: 200
+    rgb_color: [255, 14, 9]
+  ${e.string_light_b}:
+    state: 'on'
+    brightness: 200
+    rgb_color: [20, 255, 40]
+  ${e.string_light_c}:
+    state: 'on'
+    brightness: 200
+    rgb_color: [255, 14, 9]
+  ${e.piano_lamp}:
+    state: 'on'
+  ${e.christmas_tree}:
+    state: 'on'
+metadata:
+  ${e.piano_lamp}:
+    entity_only: true
+  ${e.christmas_tree}:
+    entity_only: true

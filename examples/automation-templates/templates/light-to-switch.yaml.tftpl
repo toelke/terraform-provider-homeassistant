@@ -1,0 +1,31 @@
+---
+alias: '${room}: light -> wall switch'
+description: Switches the relay channels of the wall switch along with their lights
+triggers:
+%{ for i, p in pairs ~}
+- trigger: state
+  entity_id: ${p.light}
+  from: 'off'
+  to: 'on'
+  id: on_${i}
+- trigger: state
+  entity_id: ${p.light}
+  from: 'on'
+  to: 'off'
+  id: off_${i}
+%{ endfor ~}
+conditions: []
+actions:
+- choose:
+%{ for i, p in pairs ~}
+%{ for s in ["on", "off"] ~}
+  - conditions:
+    - condition: trigger
+      id: ${s}_${i}
+    sequence:
+    - action: switch.turn_${s}
+      target:
+        entity_id: ${p.switch}
+%{ endfor ~}
+%{ endfor ~}
+mode: single

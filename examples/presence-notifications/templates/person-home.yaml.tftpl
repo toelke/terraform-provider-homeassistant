@@ -1,0 +1,15 @@
+---
+alias: ${name} is home
+description: ''
+triggers:
+- trigger: state
+  entity_id: ${person}
+  from: not_home
+  to: home
+conditions: []
+actions:
+- action: ${notify_action}
+  data:
+    message: ${name} is home!
+- action: ${spotlight}
+mode: single

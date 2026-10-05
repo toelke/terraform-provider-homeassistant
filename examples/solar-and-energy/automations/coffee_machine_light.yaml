@@ -1,0 +1,16 @@
+---
+id: coffee_machine_light
+alias: 'Kitchen: light on with the coffee machine'
+description: Turns on the kitchen light when the De'Longhi's smart plug draws over 100 W for 10 seconds
+triggers:
+- trigger: numeric_state
+  entity_id: ${e.coffee_machine_power}
+  above: 100
+  for:
+    seconds: 10
+conditions: []
+actions:
+- action: light.turn_on
+  target:
+    entity_id: ${e.kitchen_ceiling}
+mode: single

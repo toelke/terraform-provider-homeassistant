@@ -8,6 +8,9 @@ breaking changes may land in minor versions and are marked **Breaking** (ADR-001
 - `examples/demo/`: a demo against a fresh Home Assistant in Docker (one automation template
   for every area, automations from YAML files, drift, dashboards per area), recorded in
   `docs/demo.cast`.
+- `examples/`: ten use-case configurations taken from a real home (automations from YAML files
+  and templates, entity lookups, floors, areas and labels, scenes and remotes, solar- and
+  presence-driven automations, generated dashboards), indexed in `examples/README.md`.
 
 ## 0.1.0
 

@@ -1,0 +1,39 @@
+---
+alias: '${room}: sync climate set-points'
+description: Keeps the set-points of the room's climate entity and of its radiator thermostat in sync
+triggers:
+- trigger: state
+  entity_id: ${trv}
+  attribute: target_temp_low
+  id: from_trv
+- trigger: state
+  entity_id: ${climate}
+  attribute: temperature
+  id: from_climate
+conditions:
+- condition: template
+  value_template: |
+    {{ trigger.from_state.attributes.temperature != trigger.to_state.attributes.temperature or trigger.from_state.attributes.target_temp_low != trigger.to_state.attributes.target_temp_low }}
+actions:
+- choose:
+  - conditions:
+    - condition: trigger
+      id: from_trv
+    sequence:
+    - action: climate.set_temperature
+      target:
+        entity_id: ${climate}
+      data:
+        temperature: '{{ state_attr(''${trv}'', ''target_temp_low'') }}'
+  - conditions:
+    - condition: trigger
+      id: from_climate
+    sequence:
+    - action: climate.set_temperature
+      target:
+        entity_id: ${trv}
+      data:
+        hvac_mode: heat
+        target_temp_high: '{{ state_attr(''${climate}'', ''temperature'') }}'
+        target_temp_low: '{{ state_attr(''${climate}'', ''temperature'') }}'
+mode: single
