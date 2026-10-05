@@ -101,6 +101,10 @@ dashboards. See ADR-0005.
 same JSON (e.g. `5` vs `5.0`, key order). Implemented as a custom attribute type, so a value read
 back from HA that means the same thing never shows up as a diff. See ADR-0006.
 
+**Stored baseline** — A hash of a dynamic config as HA stored it right after the provider's own
+write, kept in the resource's private state. A later read with the same hash is never drift, even
+where HA rewrote the config on save (e.g. renamed old keys). See ADR-0023.
+
 **Builder function** — A provider-defined function (e.g.
 `provider::homeassistant::state_trigger(...)`) that returns a plain object for use inside a
 dynamic config. Builder functions are optional and give typed ergonomics on top of dynamic config.

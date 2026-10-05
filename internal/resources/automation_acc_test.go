@@ -313,3 +313,77 @@ resource "homeassistant_automation" "test" {
 		}},
 	})
 }
+
+// accAutomationLegacy uses the old key names, which HA renames when it saves (issue #36).
+const accAutomationLegacy = `
+resource "homeassistant_automation" "test" {
+  id = "acc_legacy"
+  config = {
+    alias     = "Acc Legacy"
+    trigger   = [{ platform = "state", entity_id = ["sun.sun"], to = "below_horizon" }]
+    condition = []
+    action = [{
+      choose = [{
+        conditions = [{ condition = "state", entity_id = "sun.sun", state = "below_horizon" }]
+        sequence   = [{ service = "persistent_notification.create", data = { message = "Dusk" } }]
+      }]
+    }]
+    mode = "single"
+  }
+}
+`
+
+// TestAccAutomation_LegacyKeys checks the stored baseline (ADR-0023): HA renames old keys on
+// save, and the plan stays empty, while a change made outside Tofu is still drift.
+func TestAccAutomation_LegacyKeys(t *testing.T) {
+	const addr = "homeassistant_automation.test"
+	config := acctest.ProviderConfig + accAutomationLegacy
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { acctest.PreCheck(t) },
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		CheckDestroy:             checkAutomationGone(t, "acc_legacy"),
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				// HA has renamed the keys, but state keeps the user's spelling.
+				Check: resource.ComposeAggregateTestCheckFunc(
+					checkAutomationConfig(t, "acc_legacy", `{"alias":"Acc Legacy","mode":"single",
+						"triggers":[{"platform":"state","entity_id":["sun.sun"],"to":"below_horizon"}],
+						"conditions":[],
+						"actions":[{"choose":[{
+							"conditions":[{"condition":"state","entity_id":"sun.sun","state":"below_horizon"}],
+							"sequence":[{"action":"persistent_notification.create","data":{"message":"Dusk"}}]}]}]}`),
+					resource.TestCheckResourceAttr(addr, "config.action.0.choose.0.sequence.0.service",
+						"persistent_notification.create"),
+				),
+			},
+			{
+				Config: config,
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()},
+				},
+			},
+			{
+				// A change saved in the automation editor is still drift.
+				PreConfig: func() {
+					if err := automations(t).Save(context.Background(), "acc_legacy",
+						json.RawMessage(`{"alias":"Edited in the UI","triggers":[],"actions":[]}`)); err != nil {
+						t.Fatal(err)
+					}
+				},
+				Config: config,
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(addr, plancheck.ResourceActionUpdate)},
+				},
+				Check: checkAutomationAlias(t, "acc_legacy", "Acc Legacy"),
+			},
+			{
+				// The update recorded a new baseline.
+				Config: config,
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()},
+				},
+			},
+		},
+	})
+}

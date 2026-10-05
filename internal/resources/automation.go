@@ -20,7 +20,9 @@ func NewAutomation() resource.Resource {
 			"`conditions`, `actions`, …), as an HCL object or " +
 			"`yamldecode(file(\"automation.yaml\"))`. YAML copied from the automation " +
 			"editor works unchanged once its `id` line is removed. Home Assistant validates " +
-			"it on apply.",
+			"it on apply. When it saves, Home Assistant renames old keys (`trigger`, " +
+			"`condition`, and `action` at the top level become plurals, `service` becomes " +
+			"`action`); the provider keeps your spelling, and the plan stays empty.",
 		entityIDDescription: "Entity ID of the automation, e.g. `automation.bedroom_lights_on_motion`. " +
 			"Home Assistant derives it from the alias when the automation is first created, " +
 			"and keeps it afterwards.",

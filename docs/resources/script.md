@@ -65,7 +65,7 @@ resource "homeassistant_script" "leaving" {
 
 ### Required
 
-- `config` (Dynamic) The script (`alias`, `description`, `mode`, `icon`, `fields`, `sequence`, …), as an HCL object or `yamldecode(file("script.yaml"))`. YAML copied from the script editor works unchanged. Home Assistant validates it on apply.
+- `config` (Dynamic) The script (`alias`, `description`, `mode`, `icon`, `fields`, `sequence`, …), as an HCL object or `yamldecode(file("script.yaml"))`. YAML copied from the script editor works unchanged. Home Assistant validates it on apply. When it saves, Home Assistant renames `service` to `action` in the sequence; the provider keeps your spelling, and the plan stays empty.
 - `id` (String) Config ID of the script, e.g. `goodnight`: lowercase letters, digits, and underscores. It is also the object ID of the script's entity. Changing it replaces the script. Import with this ID.
 
 ### Read-Only

@@ -77,7 +77,7 @@ resource "homeassistant_automation" "vacation_lights" {
 
 ### Required
 
-- `config` (Dynamic) The automation (`alias`, `description`, `mode`, `triggers`, `conditions`, `actions`, …), as an HCL object or `yamldecode(file("automation.yaml"))`. YAML copied from the automation editor works unchanged once its `id` line is removed. Home Assistant validates it on apply.
+- `config` (Dynamic) The automation (`alias`, `description`, `mode`, `triggers`, `conditions`, `actions`, …), as an HCL object or `yamldecode(file("automation.yaml"))`. YAML copied from the automation editor works unchanged once its `id` line is removed. Home Assistant validates it on apply. When it saves, Home Assistant renames old keys (`trigger`, `condition`, and `action` at the top level become plurals, `service` becomes `action`); the provider keeps your spelling, and the plan stays empty.
 - `id` (String) Config ID of the automation, e.g. `motion_bedroom`: lowercase letters, digits, and underscores. Changing it replaces the automation. Import with this ID.
 
 ### Read-Only

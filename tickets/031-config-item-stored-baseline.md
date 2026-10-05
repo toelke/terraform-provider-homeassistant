@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 depends_on: [016, 017, 018]
 adrs: [0023, 0006]
 spec: [automations.md, overview.md]
@@ -21,11 +21,11 @@ From issue #36: old keys that HA renames on save cause a diff that apply never r
 - `CHANGELOG.md` entry under `Unreleased` (Fixed), referencing #36.
 
 ## Acceptance criteria
-- [ ] Acceptance test: the reproduction from #36 (top-level `trigger`/`condition`/`action`, and
+- [x] Acceptance test: the reproduction from #36 (top-level `trigger`/`condition`/`action`, and
       `service` in a nested step such as `choose[].sequence`). The plan after apply is empty.
-- [ ] Acceptance test: the same for a script with `service` in its `sequence`.
-- [ ] Drift is still detected: a config changed through the REST editor between steps shows as a
+- [x] Acceptance test: the same for a script with `service` in its `sequence`.
+- [x] Drift is still detected: a config changed through the REST editor between steps shows as a
       diff.
-- [ ] Unit test: a state without a baseline falls back to semantic equality.
-- [ ] The PR body contains "Closes #36" only if ticket 032 is already merged; otherwise "Part of
+- [x] Unit test: a state without a baseline falls back to semantic equality.
+- [x] The PR body contains "Closes #36" only if ticket 032 is already merged; otherwise "Part of
       #36".
