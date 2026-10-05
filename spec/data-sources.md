@@ -53,13 +53,16 @@ Every filter is optional, and an entity must match all that are set.
 | `label` | string | label ID or name, resolved through `label_entities()`; an unknown label matches nothing |
 | `device_class` | string | equals `attributes.device_class` |
 | `name_pattern` | string | glob against `friendly_name`: `*` is any characters, `?` one character, everything else is literal and case-sensitive. Entities without a `friendly_name` never match |
+| `hidden` | bool | `false`: only entities that aren't hidden; `true`: only hidden ones; unset: no filter. Hidden means `hidden_by` is set, by the user or an integration. Entities without a registry entry are never hidden (ADR-0022) |
+| `device_id` | string | device ID, resolved through `device_entities()`; an unknown device matches nothing. To look up a device by name, use `data.homeassistant_device` (ADR-0022) |
 
-There is no `state` filter (ADR-0015).
+There is no `state` filter (ADR-0015), and no `disabled` filter: HA removes disabled entities
+from `/api/states` (ADR-0022).
 
 | Computed | Type |
 |---|---|
 | `entity_ids` | list(string), sorted |
-| `entities` | dynamic: an object keyed by entity ID, each value `{ state, friendly_name, attributes, last_changed }` |
+| `entities` | dynamic: an object keyed by entity ID, each value `{ state, friendly_name, attributes, last_changed, hidden }` |
 
 `entities` is dynamic rather than `map(object)`, because terraform-plugin-framework does not
 allow a dynamic value (`attributes`, ADR-0015) inside a map. HCL reads it the same way:
@@ -69,13 +72,15 @@ entity has none.
 **Algorithm:**
 
 1. `GET /api/states`.
-2. If `area` or `label` is set, render `{{ area_entities("<x>") | tojson }}` or
-   `{{ label_entities("<x>") | tojson }}` through the template API, JSON-decode the result, and
-   intersect it with the states. The value is written as a Jinja string literal in which
+2. If `area`, `label`, or `device_id` is set, render `{{ area_entities("<x>") | tojson }}`,
+   `{{ label_entities("<x>") | tojson }}`, or `{{ device_entities("<x>") | tojson }}` through the
+   template API, JSON-decode the result, and intersect it with the states. The value is written as a Jinja string literal in which
    `"`, `\`, and every character outside printable ASCII become a `\uXXXX` or `\UXXXXXXXX`
    escape, so it can't end the literal.
-3. Apply the remaining filters.
-4. Sort the result by entity ID.
+3. Render `{{ states | map(attribute="entity_id") | select("is_hidden_entity") | list | tojson }}`
+   once, which gives every entity's `hidden` flag, and apply the `hidden` filter if it is set.
+4. Apply the remaining filters.
+5. Sort the result by entity ID.
 
 ## `homeassistant_template`
 
