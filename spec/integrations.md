@@ -74,7 +74,8 @@ fields is answered by `{}`.
 - **Read:** `config_entries/get` filtered by `domain`, matched on `entry_id`. If gone → remove
   from state. Inputs are never compared.
 - **Delete:** `DELETE /api/config/config_entries/entry/<id>`. An entry that is already gone is
-  not an error.
+  not an error. If HA answers `require_restart: true`, the delete succeeds with a warning that HA
+  needs a restart to finish removing the integration.
 - **Import:** by `entry_id`, read across all domains. The steps cannot be recovered, so after
   import they are null and the user writes them. The next plan is an in-place update that only
   records them in state; nothing is sent to HA. After that, changing them forces replacement as

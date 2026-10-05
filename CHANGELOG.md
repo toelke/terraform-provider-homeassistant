@@ -9,6 +9,14 @@ breaking changes may land in minor versions and are marked **Breaking** (ADR-001
   `entities`, so lookups can skip hidden duplicates (#30).
 - `data.homeassistant_entities`: new `device_id` filter, for telling apart entities with the same
   friendly name on different devices (#30).
+- Ctrl-C during a create no longer leaves a half-created floor, area, label, input helper, or
+  dashboard behind in Home Assistant: the rollback delete runs even when the run is cancelled.
+- Config-flow errors explain what to do: `already_configured` and `single_instance_allowed`
+  suggest importing the existing entry, `cannot_connect` and `invalid_auth` point at the network
+  and the credentials.
+- A create of a floor, area, label, or input helper that fails because Home Assistant is
+  unreachable no longer suggests a name clash.
+- Deleting an integration warns when Home Assistant needs a restart to finish removing it.
 - `examples/demo/`: a demo against a fresh Home Assistant in Docker (one automation template
   for every area, automations from YAML files, drift, dashboards per area), recorded in
   `docs/demo.cast`.

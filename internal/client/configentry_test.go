@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"reflect"
 	"testing"
@@ -62,18 +63,25 @@ func TestConfigEntriesDelete(t *testing.T) {
 			_, _ = w.Write([]byte(`{"message":"Invalid entry specified"}`))
 			return
 		}
-		_, _ = w.Write([]byte(`{"require_restart":false}`))
+		restart := r.URL.Path == "/api/config/config_entries/entry/E2"
+		_, _ = fmt.Fprintf(w, `{"require_restart":%t}`, restart)
 	})
 	entries := NewConfigEntries(nil, rest)
 
-	if err := entries.Delete(t.Context(), "E1"); err != nil {
-		t.Errorf("Delete(E1) = %v", err)
+	if restart, err := entries.Delete(t.Context(), "E1"); err != nil || restart {
+		t.Errorf("Delete(E1) = %v, %v", restart, err)
+	}
+	if restart, err := entries.Delete(t.Context(), "E2"); err != nil || !restart {
+		t.Errorf("Delete(E2) = %v, %v; want require_restart", restart, err)
 	}
 	// An entry that is already gone is not an error.
-	if err := entries.Delete(t.Context(), "gone"); err != nil {
-		t.Errorf("Delete(gone) = %v", err)
+	if restart, err := entries.Delete(t.Context(), "gone"); err != nil || restart {
+		t.Errorf("Delete(gone) = %v, %v", restart, err)
 	}
-	want := []string{"/api/config/config_entries/entry/E1", "/api/config/config_entries/entry/gone"}
+	want := []string{
+		"/api/config/config_entries/entry/E1", "/api/config/config_entries/entry/E2",
+		"/api/config/config_entries/entry/gone",
+	}
 	if !reflect.DeepEqual(deleted, want) {
 		t.Errorf("deleted = %v", deleted)
 	}

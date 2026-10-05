@@ -194,6 +194,24 @@ func TestConfigFlowFormErrorsAbort(t *testing.T) {
 	}
 }
 
+// Ctrl-C cancels the context while a form is being answered: the flow is still aborted.
+func TestConfigFlowAbortsWithCancelledContext(t *testing.T) {
+	f := &fakeFlow{t: t, init: formUser}
+	ctx, cancel := context.WithCancel(t.Context())
+
+	_, err := f.client().RunAnswer(ctx, "shelly", "", func(context.Context, FlowForm) (map[string]any, error) {
+		cancel()
+		return nil, context.Canceled
+	})
+
+	if !errors.Is(err, context.Canceled) || strings.Contains(err.Error(), "aborting flow") {
+		t.Fatalf("err = %v", err)
+	}
+	if !reflect.DeepEqual(f.deleted, []string{"f1"}) {
+		t.Errorf("deleted = %v", f.deleted)
+	}
+}
+
 func TestConfigFlowRejectedSubmitAborts(t *testing.T) {
 	// HA answers 400 when the data does not match the step's schema, and leaves the flow open.
 	f := &fakeFlow{t: t, init: formUser, replies: []string{`400 {"message":"User input malformed: required key not provided @ data['host']"}`}}

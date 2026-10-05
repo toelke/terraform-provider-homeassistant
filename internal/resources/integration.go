@@ -253,6 +253,11 @@ func (r *integrationResource) Update(ctx context.Context, req resource.UpdateReq
 	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
+// restartWarning is the detail of the warning when HA needs a restart to finish deleting a config
+// entry.
+const restartWarning = "The config entry was deleted, but Home Assistant needs a restart to finish " +
+	"removing the integration."
+
 func (r *integrationResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var state integrationModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -260,8 +265,13 @@ func (r *integrationResource) Delete(ctx context.Context, req resource.DeleteReq
 		return
 	}
 
-	if err := r.entries.Delete(ctx, state.ID.ValueString()); err != nil {
+	restart, err := r.entries.Delete(ctx, state.ID.ValueString())
+	if err != nil {
 		resp.Diagnostics.AddError("Deleting config entry", client.ErrorDetail(err))
+		return
+	}
+	if restart {
+		resp.Diagnostics.AddWarning("Restart Home Assistant", restartWarning)
 	}
 }
 

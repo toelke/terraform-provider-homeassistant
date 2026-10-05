@@ -316,7 +316,7 @@ func setUpTwinDevices(t *testing.T) (deviceIDs, entityIDs [2]string) {
 		"broker": "localhost", "set_ca_cert": "off", "set_client_cert": false,
 	}, nil))
 	must(err)
-	t.Cleanup(func() { _ = client.NewConfigEntries(c.WS, c.REST).Delete(context.Background(), entryID) })
+	t.Cleanup(func() { _, _ = client.NewConfigEntries(c.WS, c.REST).Delete(context.Background(), entryID) })
 
 	devices := client.Devices(c.WS)
 	registry := client.Entities(c.WS)

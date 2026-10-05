@@ -261,8 +261,13 @@ func (r *typedIntegration[M, P]) Delete(ctx context.Context, req resource.Delete
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := r.entries.Delete(ctx, P(&state).entry().ID.ValueString()); err != nil {
+	restart, err := r.entries.Delete(ctx, P(&state).entry().ID.ValueString())
+	if err != nil {
 		resp.Diagnostics.AddError("Deleting config entry", client.ErrorDetail(err))
+		return
+	}
+	if restart {
+		resp.Diagnostics.AddWarning("Restart Home Assistant", restartWarning)
 	}
 }
 

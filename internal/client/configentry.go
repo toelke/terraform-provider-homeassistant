@@ -55,12 +55,15 @@ func (c ConfigEntries) Get(ctx context.Context, domain, entryID string) (entry C
 	return entry, false, nil
 }
 
-// Delete deletes the config entry with the given ID. An entry that is already gone is not an
-// error.
-func (c ConfigEntries) Delete(ctx context.Context, entryID string) error {
-	err := c.rest.Do(ctx, http.MethodDelete, "config/config_entries/entry/"+url.PathEscape(entryID), nil, nil)
-	if errors.Is(err, ErrNotFound) {
-		return nil
+// Delete deletes the config entry with the given ID. requireRestart reports that HA needs a
+// restart to finish removing the integration. An entry that is already gone is not an error.
+func (c ConfigEntries) Delete(ctx context.Context, entryID string) (requireRestart bool, err error) {
+	var out struct {
+		RequireRestart bool `json:"require_restart"`
 	}
-	return err
+	err = c.rest.Do(ctx, http.MethodDelete, "config/config_entries/entry/"+url.PathEscape(entryID), nil, &out)
+	if errors.Is(err, ErrNotFound) {
+		return false, nil
+	}
+	return out.RequireRestart, err
 }

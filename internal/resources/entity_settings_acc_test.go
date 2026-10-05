@@ -26,7 +26,7 @@ func moonEntity(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = client.NewConfigEntries(c.WS, c.REST).Delete(context.Background(), entryID) })
+	t.Cleanup(func() { _, _ = client.NewConfigEntries(c.WS, c.REST).Delete(context.Background(), entryID) })
 
 	entities := client.Entities(c.WS)
 	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(200 * time.Millisecond) {
