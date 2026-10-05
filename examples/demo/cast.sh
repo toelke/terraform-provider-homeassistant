@@ -1,21 +1,19 @@
 #!/usr/bin/env bash
 # The scripted terminal session of docs/demo.cast. Record it against a fresh ./up.sh with
 #
-#   asciinema rec --cols 100 --rows 32 --idle-time-limit 2 -c ./cast.sh ../../docs/demo.cast
+#   asciinema rec -f asciicast-v2 --window-size 100x32 --idle-time-limit 2 -c ./cast.sh ../../docs/demo.cast
 #   agg --theme monokai --font-size 14 --last-frame-duration 6 ../../docs/demo.cast ../../docs/images/demo.gif
 #
-# Run `tofu init` first. The session works on a copy of this directory, so the edits it makes
-# leave the example unchanged.
+# Run `tofu init` first, against a Home Assistant that ./up.sh has just started: the session
+# begins with the first apply. It works on a copy of this directory, so the edits it makes leave
+# the example unchanged.
 set -euo pipefail
 
 work=$(mktemp -d)
 cd "$(dirname "$0")"
-cp -r main.tf automations "$work/"
+cp -r main.tf automations templates "$work/"
 if [[ -d .terraform ]]; then cp -r .terraform .terraform.lock.hcl "$work/"; fi
 cd "$work"
-
-# Off camera: apply the example once, so the session starts with a configured Home Assistant.
-tofu apply -auto-approve -input=false >/dev/null
 clear
 
 say() {
@@ -36,25 +34,30 @@ run() {
   sleep 2.5
 }
 
-say "A Home Assistant, managed with OpenTofu. This is already applied:"
-run "tofu state list"
+ha() {
+  curl -sf -H "Authorization: Bearer $HOMEASSISTANT_TOKEN" "$@"
+}
 
-say "Automations are YAML files, as copied out of the automation editor:"
-run "cat automations/sunset_lights.yaml"
+say "A freshly onboarded Home Assistant. One apply sets up areas, automations and dashboards:"
+run "tofu apply -auto-approve -concise | grep 'Apply complete'"
 
-say "Now someone changes the brightness to 100 % in the Home Assistant UI ..."
+say "Every area gets the same automation, written once as a template:"
+run "cat templates/lights_left_on.yaml.tftpl"
+run "tofu state list | grep lights_left_on"
+
+say "Someone changes the kitchen's copy to 4 hours in the Home Assistant UI ..."
 # The request the automation editor sends when it saves.
-sed 's/brightness_pct: 70/brightness_pct: 100/' automations/sunset_lights.yaml >edited.yaml
-curl -sf -X POST -H "Authorization: Bearer $HOMEASSISTANT_TOKEN" \
-  -d "$(echo 'jsonencode(yamldecode(file("edited.yaml")))' | tofu console | jq -r .)" \
-  "$HOMEASSISTANT_URL/api/config/automation/config/sunset_lights" >/dev/null
+url=$HOMEASSISTANT_URL/api/config/automation/config/lights_left_on_kitchen
+ha "$url" | jq -c '.triggers[0].for.hours = 4' | ha -X POST -d @- "$url" >/dev/null
 sleep 1
 
-say "... and tofu plan shows the drift:"
-run "tofu plan -concise"
+say "... tofu plan shows the drift, and apply makes it match the others again:"
+run "tofu plan -concise | sed -n '/will be/,/Plan:/p'"
+run "tofu apply -auto-approve -concise | grep 'Apply complete'"
 
-say "tofu apply puts it back:"
-run "tofu apply -auto-approve -concise"
+say "One edit to the template changes every area:"
+sed -i 's/hours: 2/hours: 1/; s/two hours/an hour/' templates/lights_left_on.yaml.tftpl
+run "tofu apply -auto-approve -concise | grep -E 'will be|Apply complete'"
 
 say "Both dashboards share the quick actions section. Add a thermostat to it:"
 sed -i 's|    provider::homeassistant::tile_card("lock.front_door"),|&\n    provider::homeassistant::tile_card("climate.hvac"),|' main.tf

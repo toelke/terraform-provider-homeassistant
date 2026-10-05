@@ -72,6 +72,23 @@ resource "homeassistant_automation" "yaml" {
   depends_on = [homeassistant_script.all_lights_off]
 }
 
+# The same automation for every area, written once as a template. Each area's copy gets the
+# lights that are in it; areas without lights get none.
+locals {
+  area_lights = {
+    for area in keys(local.areas) : area => [for light, a in local.light_areas : light if a == area]
+  }
+}
+
+resource "homeassistant_automation" "lights_left_on" {
+  for_each = { for area, lights in local.area_lights : area => lights if length(lights) > 0 }
+  id       = "lights_left_on_${each.key}"
+  config = yamldecode(templatefile("${path.module}/templates/lights_left_on.yaml.tftpl", {
+    name   = local.areas[each.key]
+    lights = each.value
+  }))
+}
+
 resource "homeassistant_script" "all_lights_off" {
   id = "all_lights_off"
   config = {

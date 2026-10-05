@@ -29,12 +29,15 @@ The [documentation](docs/) covers every resource, data source and function, with
 
 ## Demo
 
-[`examples/demo/`](examples/demo/) configures a fresh Home Assistant in Docker: automations from
-YAML files, areas, and two dashboards built from the lights in each area, with a shared
-quick-actions section.
+[`examples/demo/`](examples/demo/) configures a fresh Home Assistant in Docker with one
+`tofu apply`: areas, the same automation for every area from one template, automations from YAML
+files, and two dashboards built from the lights in each area, with a shared quick-actions
+section.
 
-![Terminal recording: tofu plan finds an automation changed in the UI, tofu apply restores
-it, and an edit to the shared section updates both dashboards](docs/images/demo.gif)
+![Terminal recording: one apply sets up a fresh Home Assistant; tofu plan finds a per-area
+automation changed in the UI and apply makes it match the others again; one edit to the
+template updates every area's automation, and one edit to the shared section updates both
+dashboards](docs/images/demo.gif)
 
 The recording is [`docs/demo.cast`](docs/demo.cast) (play it with `asciinema play`). The UI edit
 in it is the request Home Assistant's automation editor sends on save. The dashboards it builds:
