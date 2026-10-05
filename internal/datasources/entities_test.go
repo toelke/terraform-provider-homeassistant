@@ -42,8 +42,10 @@ func TestEntityFilter(t *testing.T) {
 			entityFilter{area: map[string]bool{"light.kitchen": true, "sensor.kitchen_temp": true}},
 			[]string{"light.kitchen", "sensor.kitchen_temp"},
 		},
-		"empty area": {entityFilter{area: map[string]bool{}}, []string{}},
-		"label":      {entityFilter{label: map[string]bool{"light.hall": true}}, []string{"light.hall"}},
+		"empty area":   {entityFilter{area: map[string]bool{}}, []string{}},
+		"label":        {entityFilter{label: map[string]bool{"light.hall": true}}, []string{"light.hall"}},
+		"device":       {entityFilter{device: map[string]bool{"sensor.hall_temp": true}}, []string{"sensor.hall_temp"}},
+		"empty device": {entityFilter{device: map[string]bool{}}, []string{}},
 		"device class": {
 			entityFilter{deviceClass: "temperature"},
 			[]string{"sensor.hall_temp", "sensor.kitchen_temp"},
@@ -69,6 +71,7 @@ func TestEntityFilter(t *testing.T) {
 				name:        globRegexp("K*"),
 				area:        map[string]bool{"sensor.kitchen_temp": true, "sensor.hall_temp": true, "light.kitchen": true},
 				label:       map[string]bool{"sensor.kitchen_temp": true, "sensor.hall_temp": true},
+				device:      map[string]bool{"sensor.kitchen_temp": true, "light.kitchen": true},
 			},
 			[]string{"sensor.kitchen_temp"},
 		},
@@ -135,17 +138,22 @@ func (f *fakeEntitiesReader) RenderTemplate(_ context.Context, template string) 
 }
 
 func TestEntityIDsOfEscapesTheValue(t *testing.T) {
-	fake := &fakeEntitiesReader{result: `["light.kitchen","sensor.kitchen_temp"]`}
-	d := entitiesDataSource{client: fake}
-	got, err := d.entityIDsOf(t.Context(), "area_entities", `x") + states("y`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if want := []string{`{{ area_entities("x\u0022) + states(\u0022y") | tojson }}`}; !reflect.DeepEqual(fake.templates, want) {
-		t.Errorf("templates = %q, want %q", fake.templates, want)
-	}
-	if !reflect.DeepEqual(got, map[string]bool{"light.kitchen": true, "sensor.kitchen_temp": true}) {
-		t.Errorf("ids = %v", got)
+	for _, function := range []string{"area_entities", "label_entities", "device_entities"} {
+		t.Run(function, func(t *testing.T) {
+			fake := &fakeEntitiesReader{result: `["light.kitchen","sensor.kitchen_temp"]`}
+			d := entitiesDataSource{client: fake}
+			got, err := d.entityIDsOf(t.Context(), function, `x") + states("y`)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := []string{`{{ ` + function + `("x\u0022) + states(\u0022y") | tojson }}`}
+			if !reflect.DeepEqual(fake.templates, want) {
+				t.Errorf("templates = %q, want %q", fake.templates, want)
+			}
+			if !reflect.DeepEqual(got, map[string]bool{"light.kitchen": true, "sensor.kitchen_temp": true}) {
+				t.Errorf("ids = %v", got)
+			}
+		})
 	}
 }
 

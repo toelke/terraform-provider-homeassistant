@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 depends_on: [008, 012]
 adrs: [0022]
 spec: [data-sources.md]
@@ -16,9 +16,9 @@ From issue #30. Duplicate friendly names usually belong to different devices.
 - `CHANGELOG.md` entry under `Unreleased`, referencing #30.
 
 ## Acceptance criteria
-- [ ] Acceptance test: two entities with the same friendly name on two devices. `device_id`
+- [x] Acceptance test: two entities with the same friendly name on two devices. `device_id`
       returns only the entity of that device.
-- [ ] An unknown device ID returns no entities and no error.
-- [ ] The device ID is escaped like the `area` and `label` values (unit test).
-- [ ] The PR body contains "Closes #30" only if ticket 029 is already merged; otherwise "Part of
+- [x] An unknown device ID returns no entities and no error.
+- [x] The device ID is escaped like the `area` and `label` values (unit test).
+- [x] The PR body contains "Closes #30" only if ticket 029 is already merged; otherwise "Part of
       #30".
