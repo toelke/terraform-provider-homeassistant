@@ -5,6 +5,9 @@ breaking changes may land in minor versions and are marked **Breaking** (ADR-001
 
 ## Unreleased
 
+- `examples/demo/`: a demo against a fresh Home Assistant in Docker (automations from YAML
+  files, drift, dashboards per area), recorded in `docs/demo.cast`.
+
 ## 0.1.0
 
 First release with the v0.1 feature set.

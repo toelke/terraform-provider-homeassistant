@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 depends_on: [021]
 adrs: [0005, 0007]
 spec: [dashboards.md, automations.md]
@@ -23,6 +23,6 @@ spec: [dashboards.md, automations.md]
   the human. **The human posts it**; the agent does not.
 
 ## Acceptance criteria
-- [ ] `examples/demo/` applies cleanly against a fresh HA from the support window.
+- [x] `examples/demo/` applies cleanly against a fresh HA from the support window.
 - [ ] The cast, the screenshots, and the README section are merged.
 - [ ] The post draft is in the PR description for the human to review.

@@ -1,0 +1,8 @@
+# Home Assistant configuration for the demo container: what a fresh install writes, plus the demo
+# integration, which adds lights, locks, covers and more to put on a dashboard.
+default_config:
+demo:
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
