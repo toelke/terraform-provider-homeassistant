@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-"""Ticket overview, and the next ticket to take (AGENTS.md, "Taking the next ticket").
+"""Ticket and issue overview, and the next task to take (AGENTS.md, "Taking the next task").
 
-    scripts/tickets.py          table of all tickets: state, dependencies, PR or worktree
+    scripts/tickets.py          table of all tickets, then of agent-ready GitHub issues
     scripts/tickets.py --open   the same, without done tickets
-    scripts/tickets.py --next   only the next ticket: "<NNN> new" or "<NNN> resume <path>";
-                                exit 1 if no ticket is ready
+    scripts/tickets.py --next   only the next task: "<NNN> new", "<NNN> resume <path>",
+                                "issue <N> new" or "issue <N> resume <path>";
+                                exit 1 if nothing is ready
+
+GitHub issues count as tasks only when they carry the `agent-ready` label and not
+`needs-decision`. Only maintainers can set labels, so nobody else can queue work.
 
 Ticket status comes from origin/main. Work in progress comes from open PRs, local worktrees and
 their `.owner` PID, and `ticket/*` branches on origin.
@@ -61,16 +65,35 @@ def ticket_of(branch: str) -> str | None:
     return m[1] if m else None
 
 
+def issue_of(branch: str) -> str | None:
+    m = re.match(r"(?:refs/heads/)?issue/(\d+)-", branch)
+    return "issue " + m[1] if m else None
+
+
+def task_of(branch: str) -> str | None:
+    return ticket_of(branch) or issue_of(branch)
+
+
+def agent_ready_issues() -> dict[str, dict]:
+    issues = json.loads(run("gh", "issue", "list", "--state", "open", "--label", "agent-ready",
+                            "--limit", "100", "--json", "number,title,labels"))
+    return {
+        f"issue {i['number']}": {"title": i["title"], "status": "todo", "deps": []}
+        for i in sorted(issues, key=lambda i: i["number"])
+        if "needs-decision" not in {l["name"] for l in i["labels"]}
+    }
+
+
 def open_prs() -> dict[str, int]:
     prs = json.loads(run("gh", "pr", "list", "--state", "open", "--json", "number,headRefName"))
-    return {t: p["number"] for p in prs if (t := ticket_of(p["headRefName"]))}
+    return {t: p["number"] for p in prs if (t := task_of(p["headRefName"]))}
 
 
 def worktrees() -> dict[str, dict]:
     result = {}
     for block in run("git", "worktree", "list", "--porcelain").strip().split("\n\n"):
         fields = dict(line.split(" ", 1) for line in block.splitlines() if " " in line)
-        t = ticket_of(fields.get("branch", ""))
+        t = task_of(fields.get("branch", ""))
         if not t:
             continue
         path = Path(fields["worktree"])
@@ -86,14 +109,17 @@ def worktrees() -> dict[str, dict]:
 
 
 def remote_branches() -> set[str]:
-    out = run("git", "for-each-ref", "--format=%(refname:short)", "refs/remotes/origin/ticket/")
-    return {t for b in out.split() if (t := ticket_of(b.removeprefix("origin/")))}
+    out = run("git", "for-each-ref", "--format=%(refname:short)",
+              "refs/remotes/origin/ticket/", "refs/remotes/origin/issue/")
+    return {t for b in out.split() if (t := task_of(b.removeprefix("origin/")))}
 
 
 def main() -> int:
     args = set(sys.argv[1:])
     run("git", "fetch", "-q", "--prune", "origin")
     tickets = tickets_on_main()
+    issues = agent_ready_issues()
+    tickets.update(issues)
     prs, trees, branches = open_prs(), worktrees(), remote_branches()
 
     for num, t in tickets.items():
@@ -108,14 +134,16 @@ def main() -> int:
         elif tree:
             state, note = "abandoned", f"{tree['path']}, no live owner"
         elif num in branches:
-            state, note = "abandoned", f"branch origin/ticket/{num}-*, no PR"
+            prefix = "issue/" + num.split()[1] if num in issues else "ticket/" + num
+            state, note = "abandoned", f"branch origin/{prefix}-*, no PR"
         elif missing:
             state, note = "blocked", "waits for " + ", ".join(missing)
         else:
             state, note = "ready", ""
         t.update(state=state, note=note, missing=missing)
 
-    # AGENTS.md: resume abandoned work first, else the lowest-numbered ready ticket.
+    # AGENTS.md: resume abandoned work first, then the lowest-numbered ready ticket, then the
+    # lowest-numbered ready issue (tickets come first in `tickets`, issues after them).
     nxt = next((n for n, t in tickets.items() if t["state"] == "abandoned"), None)
     nxt = nxt or next((n for n, t in tickets.items() if t["state"] == "ready"), None)
 
@@ -123,8 +151,9 @@ def main() -> int:
         if not nxt:
             return 1
         t = tickets[nxt]
+        branch = ("issue/" + nxt.split()[1] if nxt in issues else "ticket/" + nxt) + "-*"
         print(f"{nxt} resume {trees[nxt]['path']}" if t["state"] == "abandoned" and nxt in trees
-              else f"{nxt} resume origin/{nxt}" if t["state"] == "abandoned"
+              else f"{nxt} resume origin/{branch}" if t["state"] == "abandoned"
               else f"{nxt} new")
         return 0
 
@@ -133,10 +162,12 @@ def main() -> int:
 
     rows = [(n, t) for n, t in tickets.items() if not ("--open" in args and t["state"] == "done")]
     width = min(max(len(t["title"]) for _, t in rows), 46)
-    print(f"{'#':<4} {'TITLE':<{width}}  {'STATE':<9}  {'DEPENDS ON':<14}  NOTE")
+    print(f"{'#':<9} {'TITLE':<{width}}  {'STATE':<9}  {'DEPENDS ON':<14}  NOTE")
     for n, t in rows:
+        if n in issues and n == next(iter(issues)):
+            print("\nagent-ready GitHub issues:")
         title = t["title"] if len(t["title"]) <= width else t["title"][: width - 1] + "…"
-        print(f"{n:<4} {title:<{width}}  {t['state']:<9}  {dep_list(t):<14}  {t['note']}")
+        print(f"{n:<9} {title:<{width}}  {t['state']:<9}  {dep_list(t):<14}  {t['note']}")
     counts = {}
     for t in tickets.values():
         counts[t["state"]] = counts.get(t["state"], 0) + 1
