@@ -115,10 +115,12 @@ CI tests the oldest and the newest of the six most recent monthly HA releases
 
 1. In [`.github/workflows/acceptance.yml`](.github/workflows/acceptance.yml), set the `ha` matrix
    to the latest patch release of the newest month and of the month five releases before it,
-   e.g. `2026.4.4` and `2026.9.4`. Tags are listed at
-   <https://github.com/home-assistant/core/releases>.
+   e.g. `2026.4.4` and `2026.9.4`, and set the `ha` of the OpenTofu 1.8 cell under `include` to
+   the oldest one. Tags are listed at <https://github.com/home-assistant/core/releases>.
 2. Set `DefaultImageTag` in [`internal/acctest/acctest.go`](internal/acctest/acctest.go) to the
    newest tag.
+3. The `main` ruleset requires the checks `Acceptance (HA <version>)` by name: replace the old
+   versions there with the new ones.
 
 ### Local builds
 

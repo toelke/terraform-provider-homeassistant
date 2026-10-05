@@ -5,7 +5,7 @@
 set -euo pipefail
 
 cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
-tag="${1:-$(sed -n 's/^\s*DefaultImageTag = "\(.*\)"/\1/p' internal/acctest/acctest.go)}"
+tag="${1:-$(sed -n 's/^[[:space:]]*DefaultImageTag = "\(.*\)"/\1/p' internal/acctest/acctest.go)}"
 
 docker run --rm --entrypoint python "ghcr.io/home-assistant/home-assistant:${tag}" -c '
 import json

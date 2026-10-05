@@ -10,6 +10,8 @@
 # Prints the reason when it exits 1.
 set -euo pipefail
 
+cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+
 pr="${1:?usage: lgtm-check.sh <pr-number>}"
 reviewer="toelke"
 repo="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"

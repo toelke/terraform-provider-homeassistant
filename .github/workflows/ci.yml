@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  # A new push to a PR supersedes the run for the previous one. Every commit on main is tested.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   # Lint, formatting, `go mod tidy` and docs freshness: the same hooks contributors run locally.
   pre-commit:
