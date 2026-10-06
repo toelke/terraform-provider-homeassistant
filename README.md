@@ -62,7 +62,7 @@ terraform {
   required_providers {
     homeassistant = {
       source  = "toelke/homeassistant"
-      version = "= 0.1.0"
+      version = "~> 1.0"
     }
   }
 }
@@ -77,10 +77,10 @@ provider "homeassistant" {
 
 ## Stability
 
-Until v1.0, the provider is not stable. Any minor release (`0.x`) may contain breaking changes to
-resources, attributes or state. Every breaking change is listed under **Breaking** in
-[`CHANGELOG.md`](CHANGELOG.md). Pin an exact version (`version = "= 0.1.0"`) and read the
-changelog before you upgrade.
+The provider follows semver from v1.0 on. Breaking changes to resources, attributes or state land
+only in a new major version, and each one is listed under **Breaking** in
+[`CHANGELOG.md`](CHANGELOG.md). Pin the major version (`version = "~> 1.0"`) and read the
+changelog before you move to a new one.
 
 ## Development
 

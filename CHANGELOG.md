@@ -1,9 +1,15 @@
 # Changelog
 
-All notable changes to this provider are listed here. Versions follow semver; before v1.0,
-breaking changes may land in minor versions and are marked **Breaking** (ADR-0018, ADR-0019).
+All notable changes to this provider are listed here. Versions follow semver: from v1.0 on,
+breaking changes land only in major versions. Before v1.0 they could land in minor versions.
+Breaking changes are marked **Breaking** (ADR-0018, ADR-0019).
 
 ## Unreleased
+
+## 1.0.0
+
+The first stable release. From here on, breaking changes to resources, attributes or state
+land only in a new major version. Upgrading from 0.1.0: read the two **Breaking** entries first.
 
 - **Breaking:** `homeassistant_entity_settings` and `homeassistant_device_settings`:
   `hidden = false` and `disabled = false` now mean "not hidden or disabled by the user". They
@@ -12,9 +18,12 @@ breaking changes may land in minor versions and are marked **Breaking** (ADR-001
   could re-enable a device that its config entry had disabled, or fail on an entity of a
   disabled device. To enable something an integration disabled, change it in Home Assistant
   (#39).
+- **Breaking:** `homeassistant_automation`, `homeassistant_script`, `homeassistant_scene`: create
+  fails if an item with the `id` already exists, e.g. one made in the UI, instead of silently
+  replacing it. Import it with `tofu import`, or choose another `id` (ADR-0024, #41).
 - Data source `homeassistant_entities`: new `hidden` filter, and a `hidden` flag on each entry of
   `entities`, so lookups can skip hidden duplicates (#30).
-- `data.homeassistant_entities`: new `device_id` filter, for telling apart entities with the same
+- Data source `homeassistant_entities`: new `device_id` filter, for telling apart entities with the same
   friendly name on different devices (#30).
 - Ctrl-C during a create no longer leaves a half-created floor, area, label, input helper, or
   dashboard behind in Home Assistant: the rollback delete runs even when the run is cancelled.
@@ -30,19 +39,6 @@ breaking changes may land in minor versions and are marked **Breaking** (ADR-001
 - `examples/`: ten use-case configurations taken from a real home (automations from YAML files
   and templates, entity lookups, floors, areas and labels, scenes and remotes, solar- and
   presence-driven automations, generated dashboards), indexed in `examples/README.md`.
-- Fixed: `homeassistant_automation`, `homeassistant_script`, `homeassistant_scene`: a config
-  with keys that Home Assistant renames on save (`trigger`, `condition`, `action` at the top
-  level, `service` in action steps) no longer shows a diff after every apply. The provider records
-  what Home Assistant stored after its own write and compares later reads against it
-  (ADR-0023). States from v0.1.0 show the diff once more, until the next apply (#36).
-- Fixed: WebSocket client: a command that times out now drops the connection, so a dead
-  (half-open) connection no longer makes every later command time out; the next command dials
-  again. A dial that times out (Home Assistant down or firewalled) is now reported as
-  unreachable, with the `-refresh=false` hint, and commands waiting for a shared dial give up
-  when their own context ends (#38).
-- **Breaking** `homeassistant_automation`, `homeassistant_script`, `homeassistant_scene`: create
-  fails if an item with the `id` already exists, e.g. one made in the UI, instead of silently
-  replacing it. Import it with `tofu import`, or choose another `id` (ADR-0024, #41).
 - `homeassistant_automation`, `homeassistant_script`, `homeassistant_scene`: new
   `timeouts = { create }` (default 60s) for the wait until Home Assistant has reloaded the new
   item. The wait polls with backoff (#41).
@@ -55,6 +51,16 @@ breaking changes may land in minor versions and are marked **Breaking** (ADR-001
   numeric-range attributes now use the standard validators of the plugin framework. Their errors
   read "Attribute <name> must …, got: <value>"; the `url_path` and `entity_id` errors still give
   an example of a valid value (#43).
+- Fixed: `homeassistant_automation`, `homeassistant_script`, `homeassistant_scene`: a config
+  with keys that Home Assistant renames on save (`trigger`, `condition`, `action` at the top
+  level, `service` in action steps) no longer shows a diff after every apply. The provider records
+  what Home Assistant stored after its own write and compares later reads against it
+  (ADR-0023). States from v0.1.0 show the diff once more, until the next apply (#36).
+- Fixed: WebSocket client: a command that times out now drops the connection, so a dead
+  (half-open) connection no longer makes every later command time out; the next command dials
+  again. A dial that times out (Home Assistant down or firewalled) is now reported as
+  unreachable, with the `-refresh=false` hint, and commands waiting for a shared dial give up
+  when their own context ends (#38).
 
 ## 0.1.0
 
