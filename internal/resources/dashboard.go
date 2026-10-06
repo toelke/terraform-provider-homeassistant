@@ -1,4 +1,3 @@
-// Package resources implements the provider's resources.
 package resources
 
 import (
@@ -127,13 +126,8 @@ func (r *dashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 }
 
 func (r *dashboardResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
-	}
-	c, ok := req.ProviderData.(*client.HAClient)
-	if !ok {
-		resp.Diagnostics.AddError("Unexpected provider data",
-			fmt.Sprintf("Expected *client.HAClient, got %T. This is a bug in the provider.", req.ProviderData))
+	c := haClient(req, resp)
+	if c == nil {
 		return
 	}
 	r.dashboards = client.NewDashboards(c.WS)

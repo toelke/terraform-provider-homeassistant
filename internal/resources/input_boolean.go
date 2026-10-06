@@ -17,5 +17,5 @@ func NewInputBoolean() resource.Resource {
 				Optional: true,
 			},
 		},
-	})()
+	})
 }

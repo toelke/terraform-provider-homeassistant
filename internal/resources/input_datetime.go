@@ -40,7 +40,7 @@ func NewInputDatetime() resource.Resource {
 			},
 		},
 		validate: validateInputDatetime,
-	})()
+	})
 }
 
 // validateInputDatetime checks that at least one of `has_date` and `has_time` is true, and that

@@ -26,7 +26,7 @@ func (v Value) JSON() ([]byte, error) {
 	if !isWhollyKnown(v.DynamicValue) {
 		return nil, errors.New("dynamic config is null or not known")
 	}
-	g, err := v.goValue()
+	g, err := GoValue(v)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +40,7 @@ func FromJSON(data []byte) (Value, error) {
 	if err != nil {
 		return Value{}, err
 	}
-	av, err := fromGo(g)
+	av, err := FromGoValue(g)
 	if err != nil {
 		return Value{}, err
 	}
@@ -161,12 +161,6 @@ func canonicalNumber(f *big.Float) json.Number {
 	return json.Number(strconv.FormatFloat(f64, 'g', -1, 64))
 }
 
-// goValue converts the value into a decoded JSON tree: map[string]any, []any, string, bool,
-// json.Number, or nil.
-func (v Value) goValue() (any, error) {
-	return GoValue(v)
-}
-
 func toGo(tv tftypes.Value) (any, error) {
 	if !tv.IsKnown() {
 		return nil, errors.New("value is not known")
@@ -223,7 +217,9 @@ func toGo(tv tftypes.Value) (any, error) {
 	}
 }
 
-func fromGo(g any) (attr.Value, error) {
+// FromGoValue converts a decoded JSON tree, as returned by GoValue, into a framework value:
+// objects become object values and arrays become tuple values.
+func FromGoValue(g any) (attr.Value, error) {
 	ctx := context.Background()
 	switch x := g.(type) {
 	case nil:
@@ -242,7 +238,7 @@ func fromGo(g any) (attr.Value, error) {
 		types := make([]attr.Type, len(x))
 		elems := make([]attr.Value, len(x))
 		for i, e := range x {
-			av, err := fromGo(e)
+			av, err := FromGoValue(e)
 			if err != nil {
 				return nil, err
 			}
@@ -258,7 +254,7 @@ func fromGo(g any) (attr.Value, error) {
 		types := make(map[string]attr.Type, len(x))
 		attrs := make(map[string]attr.Value, len(x))
 		for k, e := range x {
-			av, err := fromGo(e)
+			av, err := FromGoValue(e)
 			if err != nil {
 				return nil, err
 			}
@@ -283,10 +279,4 @@ func GoValue(v attr.Value) (any, error) {
 		return nil, err
 	}
 	return toGo(tv)
-}
-
-// FromGoValue converts a decoded JSON tree, as returned by GoValue, into a framework value:
-// objects become object values and arrays become tuple values.
-func FromGoValue(g any) (attr.Value, error) {
-	return fromGo(g)
 }

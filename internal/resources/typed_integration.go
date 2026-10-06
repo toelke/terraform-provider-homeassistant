@@ -65,6 +65,16 @@ func (m *entryModel) unread(id string) {
 	m.Title, m.State, m.DisabledBy = types.StringNull(), types.StringNull(), types.StringNull()
 }
 
+// entryAttributes returns the schema of the attributes in entryModel.
+func entryAttributes() map[string]schema.Attribute {
+	return map[string]schema.Attribute{
+		"id":          computedString("The config entry's `entry_id`, assigned by Home Assistant. Import with this ID."),
+		"title":       computedString("Title of the config entry, chosen by the integration."),
+		"state":       computedString("State of the config entry when it was last read, e.g. `loaded` or `setup_error`."),
+		"disabled_by": computedString("Who disabled the config entry, e.g. `user`; null if it is enabled."),
+	}
+}
+
 var (
 	_ resource.ResourceWithConfigure      = (*typedIntegration[esphomeModel, *esphomeModel])(nil)
 	_ resource.ResourceWithImportState    = (*typedIntegration[esphomeModel, *esphomeModel])(nil)
@@ -85,12 +95,7 @@ func (r *typedIntegration[M, P]) Metadata(_ context.Context, req resource.Metada
 }
 
 func (r *typedIntegration[M, P]) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	attrs := map[string]schema.Attribute{
-		"id":          computedString("The config entry's `entry_id`, assigned by Home Assistant. Import with this ID."),
-		"title":       computedString("Title of the config entry, chosen by the integration."),
-		"state":       computedString("State of the config entry when it was last read, e.g. `loaded` or `setup_error`."),
-		"disabled_by": computedString("Who disabled the config entry, e.g. `user`; null if it is enabled."),
-	}
+	attrs := entryAttributes()
 	maps.Copy(attrs, r.spec.attributes)
 	resp.Schema = schema.Schema{Description: r.spec.description, Attributes: attrs}
 }
@@ -102,13 +107,8 @@ func (r *typedIntegration[M, P]) ValidateConfig(ctx context.Context, req resourc
 }
 
 func (r *typedIntegration[M, P]) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
-	}
-	c, ok := req.ProviderData.(*client.HAClient)
-	if !ok {
-		resp.Diagnostics.AddError("Unexpected provider data",
-			fmt.Sprintf("Expected *client.HAClient, got %T. This is a bug in the provider.", req.ProviderData))
+	c := haClient(req, resp)
+	if c == nil {
 		return
 	}
 	r.rest = c.REST

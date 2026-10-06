@@ -39,13 +39,10 @@ type integrationResource struct {
 }
 
 type integrationModel struct {
-	ID             types.String  `tfsdk:"id"`
+	entryModel
 	Domain         types.String  `tfsdk:"domain"`
 	Steps          dyntype.Value `tfsdk:"steps"`
 	SensitiveSteps dyntype.Value `tfsdk:"sensitive_steps"`
-	Title          types.String  `tfsdk:"title"`
-	State          types.String  `tfsdk:"state"`
-	DisabledBy     types.String  `tfsdk:"disabled_by"`
 }
 
 var stepsPath = path.Root("steps")
@@ -58,50 +55,44 @@ func (r *integrationResource) Schema(_ context.Context, _ resource.SchemaRequest
 	replaceUnlessImported := dynamicplanmodifier.RequiresReplaceIf(stepsChanged,
 		"Changing the steps replaces the config entry, except right after an import.",
 		"Changing the steps replaces the config entry, except right after an import.")
+	attrs := entryAttributes()
+	maps.Copy(attrs, map[string]schema.Attribute{
+		"domain": schema.StringAttribute{
+			Description:   "Integration domain, e.g. `shelly`. Changing it replaces the entry.",
+			Required:      true,
+			PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+		},
+		"steps": schema.DynamicAttribute{
+			Description: "The answers to the config flow's forms, as an object from `step_id` to " +
+				"the form's fields, e.g. `{ user = { host = \"192.168.1.50\" } }`. Each form Home " +
+				"Assistant shows is answered by the step with its `step_id`; a form without fields " +
+				"is answered by `{}`. If Home Assistant asks for a step that is not given, or " +
+				"rejects the data, the flow is aborted and nothing is created. Changing the steps " +
+				"replaces the entry, except right after an import, when they are only recorded.",
+			CustomType:    dyntype.Type{},
+			Required:      true,
+			Validators:    []validator.Dynamic{stepsValidator{}},
+			PlanModifiers: []planmodifier.Dynamic{replaceUnlessImported},
+		},
+		"sensitive_steps": schema.DynamicAttribute{
+			Description: "More fields, in the same shape as `steps`, that are hidden in plan " +
+				"output, e.g. `{ user = { password = var.password } }`. They are merged into the " +
+				"step of the same `step_id`; on a field in both, this one wins. They are still " +
+				"stored in the state.",
+			CustomType:    dyntype.Type{},
+			Optional:      true,
+			Sensitive:     true,
+			Validators:    []validator.Dynamic{stepsValidator{sensitive: true}},
+			PlanModifiers: []planmodifier.Dynamic{replaceUnlessImported},
+		},
+	})
 	resp.Schema = schema.Schema{
 		Description: "A config entry of an integration, created by answering its config flow with " +
 			"the given steps. Home Assistant cannot return the data an entry was created with, so " +
 			"the steps are never compared with Home Assistant: changing them replaces the entry, " +
 			"and only an entry that is gone is detected as drift. Flows that need a menu, a " +
 			"browser login, or a button press on a device are not supported.",
-		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{
-				Description:   "The config entry's `entry_id`, assigned by Home Assistant. Import with this ID.",
-				Computed:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
-			},
-			"domain": schema.StringAttribute{
-				Description:   "Integration domain, e.g. `shelly`. Changing it replaces the entry.",
-				Required:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
-			},
-			"steps": schema.DynamicAttribute{
-				Description: "The answers to the config flow's forms, as an object from `step_id` to " +
-					"the form's fields, e.g. `{ user = { host = \"192.168.1.50\" } }`. Each form Home " +
-					"Assistant shows is answered by the step with its `step_id`; a form without fields " +
-					"is answered by `{}`. If Home Assistant asks for a step that is not given, or " +
-					"rejects the data, the flow is aborted and nothing is created. Changing the steps " +
-					"replaces the entry, except right after an import, when they are only recorded.",
-				CustomType:    dyntype.Type{},
-				Required:      true,
-				Validators:    []validator.Dynamic{stepsValidator{}},
-				PlanModifiers: []planmodifier.Dynamic{replaceUnlessImported},
-			},
-			"sensitive_steps": schema.DynamicAttribute{
-				Description: "More fields, in the same shape as `steps`, that are hidden in plan " +
-					"output, e.g. `{ user = { password = var.password } }`. They are merged into the " +
-					"step of the same `step_id`; on a field in both, this one wins. They are still " +
-					"stored in the state.",
-				CustomType:    dyntype.Type{},
-				Optional:      true,
-				Sensitive:     true,
-				Validators:    []validator.Dynamic{stepsValidator{sensitive: true}},
-				PlanModifiers: []planmodifier.Dynamic{replaceUnlessImported},
-			},
-			"title":       computedString("Title of the config entry, chosen by the integration."),
-			"state":       computedString("State of the config entry when it was last read, e.g. `loaded` or `setup_error`."),
-			"disabled_by": computedString("Who disabled the config entry, e.g. `user`; null if it is enabled."),
-		},
+		Attributes: attrs,
 	}
 }
 
@@ -114,13 +105,8 @@ func stepsChanged(ctx context.Context, req planmodifier.DynamicRequest, resp *dy
 }
 
 func (r *integrationResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
-	}
-	c, ok := req.ProviderData.(*client.HAClient)
-	if !ok {
-		resp.Diagnostics.AddError("Unexpected provider data",
-			fmt.Sprintf("Expected *client.HAClient, got %T. This is a bug in the provider.", req.ProviderData))
+	c := haClient(req, resp)
+	if c == nil {
 		return
 	}
 	r.flows = client.NewConfigFlows(c.REST)
@@ -172,11 +158,8 @@ func decodeSteps(v dyntype.Value) (map[string]map[string]any, error) {
 
 // setEntry copies what HA reports about the config entry into m.
 func (m *integrationModel) setEntry(e client.ConfigEntry) {
-	m.ID = types.StringValue(e.EntryID)
+	m.set(e)
 	m.Domain = types.StringValue(e.Domain)
-	m.Title = types.StringValue(e.Title)
-	m.State = types.StringValue(e.State)
-	m.DisabledBy = types.StringPointerValue(e.DisabledBy)
 }
 
 func (r *integrationResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -204,8 +187,7 @@ func (r *integrationResource) Create(ctx context.Context, req resource.CreateReq
 	}
 	if err != nil {
 		// Created but not read: keep it in state, so it is tainted and replaced, not orphaned.
-		plan.ID = types.StringValue(entryID)
-		plan.Title, plan.State, plan.DisabledBy = types.StringNull(), types.StringNull(), types.StringNull()
+		plan.unread(entryID)
 		resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 		resp.Diagnostics.AddError("Reading the new config entry", client.ErrorDetail(err))
 		return

@@ -30,7 +30,7 @@ func NewInputSelect() resource.Resource {
 			},
 		},
 		validate: validateInputSelect,
-	})()
+	})
 }
 
 // validateInputSelect checks that `options` is non-empty and unique, and that `initial` is one

@@ -68,11 +68,6 @@ func NewNull() Value {
 	return Value{DynamicValue: basetypes.NewDynamicNull()}
 }
 
-// NewUnknown returns an unknown dynamic config value.
-func NewUnknown() Value {
-	return Value{DynamicValue: basetypes.NewDynamicUnknown()}
-}
-
 func (v Value) Type(context.Context) attr.Type {
 	return Type{}
 }
@@ -95,12 +90,12 @@ func (v Value) DynamicSemanticEquals(_ context.Context, newValuable basetypes.Dy
 	if !isWhollyKnown(v.DynamicValue) || !isWhollyKnown(other.DynamicValue) {
 		return v.Equal(other), nil
 	}
-	a, err := v.goValue()
+	a, err := GoValue(v)
 	if err != nil {
 		diags.AddError("Semantic equality check error", err.Error())
 		return false, diags
 	}
-	b, err := other.goValue()
+	b, err := GoValue(other)
 	if err != nil {
 		diags.AddError("Semantic equality check error", err.Error())
 		return false, diags

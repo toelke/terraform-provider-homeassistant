@@ -124,17 +124,23 @@ func (d *entityDataSource) Read(ctx context.Context, req datasource.ReadRequest,
 	resp.Diagnostics.Append(resp.State.Set(ctx, model)...)
 }
 
-func entityModelFrom(entityID string, s *client.EntityState) (entityModel, error) {
+// decodeAttributes decodes the attributes of s twice: as a dynamic value, and flat, for reading
+// single attributes. Missing attributes decode as an empty object.
+func decodeAttributes(s *client.EntityState) (attrs dyntype.Value, flat map[string]any, err error) {
 	raw := s.Attributes
 	if len(raw) == 0 {
 		raw = json.RawMessage("{}")
 	}
-	attrs, err := dyntype.FromJSON(raw)
-	if err != nil {
-		return entityModel{}, err
+	if attrs, err = dyntype.FromJSON(raw); err != nil {
+		return attrs, nil, err
 	}
-	var flat map[string]any
-	if err := json.Unmarshal(raw, &flat); err != nil {
+	err = json.Unmarshal(raw, &flat)
+	return attrs, flat, err
+}
+
+func entityModelFrom(entityID string, s *client.EntityState) (entityModel, error) {
+	attrs, flat, err := decodeAttributes(s)
+	if err != nil {
 		return entityModel{}, err
 	}
 	return entityModel{
