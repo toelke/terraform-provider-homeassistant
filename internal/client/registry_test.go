@@ -2,61 +2,12 @@ package client
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 )
 
-// fakeLabelRegistry is a WSCommander that serves `config/label_registry/*` from memory.
-type fakeLabelRegistry struct {
-	labels []map[string]any
-	cmds   []string
-}
-
-func (f *fakeLabelRegistry) Command(_ context.Context, typ string, params map[string]any, result any) error {
-	f.cmds = append(f.cmds, typ)
-	var reply any
-	switch typ {
-	case "config/label_registry/list":
-		reply = f.labels
-	case "config/label_registry/create":
-		l := map[string]any{"label_id": Slugify(params["name"].(string))}
-		for k, v := range params {
-			l[k] = v
-		}
-		f.labels = append(f.labels, l)
-		reply = l
-	case "config/label_registry/update":
-		for _, l := range f.labels {
-			if l["label_id"] == params["label_id"] {
-				for k, v := range params {
-					l[k] = v
-				}
-				reply = l
-			}
-		}
-	case "config/label_registry/delete":
-		for i, l := range f.labels {
-			if l["label_id"] == params["label_id"] {
-				f.labels = append(f.labels[:i], f.labels[i+1:]...)
-				return nil
-			}
-		}
-		return &WSError{Code: "invalid_info", Message: "Label ID doesn't exist"}
-	}
-	if result == nil {
-		return nil
-	}
-	b, err := json.Marshal(reply)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(b, result)
-}
-
 func TestLabelRegistry(t *testing.T) {
 	ctx := context.Background()
-	f := &fakeLabelRegistry{}
-	labels := Labels(f)
+	labels := Labels(fakeStore("config/label_registry", "label_id", "label_id", false))
 
 	icon := "mdi:tag"
 	created, err := labels.Create(ctx, map[string]any{"name": "Managed", "icon": &icon, "color": (*string)(nil)})

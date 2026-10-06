@@ -12,7 +12,9 @@ Floor, area, and label share this behaviour:
 - `id` is optional and computed. If it is unset, HA assigns `slugify(name)`.
 - **Create:**
   1. If `id` is set, validate it as a slug (`slugify(id) == id`) and create with `name = id`.
-  2. Otherwise create with `name`.
+  2. Otherwise create with `name`. Unset attributes are left out of the create: HA's area create
+     rejects `null`, and floor and label are created the same way. Update sends `null` to clear
+     a field.
   3. Check that the returned ID equals the expected one (`id`, or the provider's own
      `slugify(name)`, which must match HA's slugify). On a mismatch, delete the object again and
      fail. The message names the clashing ID and the ways out.

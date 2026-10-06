@@ -29,17 +29,15 @@ func moonEntity(t *testing.T) string {
 	t.Cleanup(func() { _, _ = client.NewConfigEntries(c.WS, c.REST).Delete(context.Background(), entryID) })
 
 	entities := client.Entities(c.WS)
-	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(200 * time.Millisecond) {
+	var entityID string
+	acctest.Eventually(t, 30*time.Second, "the moon sensor in the entity registry", func() (bool, error) {
 		list, err := entities.List(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
 		if i := slices.IndexFunc(list, func(e client.EntityEntry) bool { return e.Platform == "moon" }); i >= 0 {
-			return list[i].EntityID
+			entityID = list[i].EntityID
 		}
-	}
-	t.Fatal("the moon sensor did not appear in the entity registry")
-	return ""
+		return entityID != "", err
+	})
+	return entityID
 }
 
 // checkEntityEntry runs check on the registry entry of entityID, which must exist.

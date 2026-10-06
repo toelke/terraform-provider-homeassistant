@@ -57,18 +57,15 @@ func setUpRegistry(t *testing.T) registryFixture {
 	// The device appears once the entry has set up its sensor, shortly after the flow ends.
 	devices := client.Devices(c.WS)
 	var device client.Device
-	for deadline := time.Now().Add(30 * time.Second); device.ID == ""; time.Sleep(200 * time.Millisecond) {
-		if time.Now().After(deadline) {
-			t.Fatalf("no device of config entry %s appeared", entryID)
-		}
+	acctest.Eventually(t, 30*time.Second, "a device of config entry "+entryID, func() (bool, error) {
 		list, err := devices.List(ctx)
-		must(err)
 		for _, d := range list {
 			if slices.Contains(d.ConfigEntries, entryID) {
 				device = d
 			}
 		}
-	}
+		return device.ID != "", err
+	})
 	_, err = devices.Update(ctx, device.ID, map[string]any{
 		"area_id": area.AreaID, "labels": []string{label.LabelID}, "name_by_user": "Acc Moon",
 	})

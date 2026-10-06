@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -111,4 +112,16 @@ func (v slugValidator) ValidateString(ctx context.Context, req validator.StringR
 		resp.Diagnostics.AddAttributeError(req.Path, "Invalid Attribute Value",
 			fmt.Sprintf("Attribute %s %s, got: %q", req.Path, v.Description(ctx), s))
 	}
+}
+
+// withoutNulls removes the fields whose value is a nil pointer, i.e. unset attributes. Registry
+// updates take null to clear a field, but a create may reject it (HA's area create does), so
+// floor, area, and label all create without them.
+func withoutNulls(fields map[string]any) map[string]any {
+	for k, v := range fields {
+		if rv := reflect.ValueOf(v); rv.Kind() == reflect.Pointer && rv.IsNil() {
+			delete(fields, k)
+		}
+	}
+	return fields
 }

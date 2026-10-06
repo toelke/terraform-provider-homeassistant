@@ -106,7 +106,7 @@ func (r *labelResource) Create(ctx context.Context, req resource.CreateRequest, 
 		kind:     "label",
 		typeName: "homeassistant_label",
 		create: func(ctx context.Context, name string) (string, error) {
-			fields := plan.fields()
+			fields := withoutNulls(plan.fields())
 			fields["name"] = name
 			l, err := r.labels.Create(ctx, fields)
 			return l.LabelID, err

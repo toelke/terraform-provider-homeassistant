@@ -3,6 +3,8 @@ package resources
 import (
 	"context"
 	"errors"
+	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -199,5 +201,18 @@ func TestSlugValidator(t *testing.T) {
 		if got := !resp.Diagnostics.HasError(); got != valid {
 			t.Errorf("%q: valid = %v, want %v", in, got, valid)
 		}
+	}
+}
+
+func TestWithoutNulls(t *testing.T) {
+	icon := "mdi:stairs"
+	level := int64(1)
+	got := withoutNulls(map[string]any{
+		"icon": &icon, "color": (*string)(nil), "level": &level, "floor": (*int64)(nil),
+		"aliases": []string{}, "labels": []string(nil),
+	})
+	want := map[string]any{"icon": &icon, "level": &level, "aliases": []string{}, "labels": []string(nil)}
+	if !maps.EqualFunc(got, want, func(a, b any) bool { return fmt.Sprint(a) == fmt.Sprint(b) }) {
+		t.Errorf("withoutNulls = %v, want %v", got, want)
 	}
 }
