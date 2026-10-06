@@ -10,7 +10,9 @@
                                     done: "<N> <ticket> <ticket> ..."; they can be closed
 
 GitHub issues count as tasks only when they carry the `agent-ready` label and not
-`needs-decision`. Only maintainers can set labels, so nobody else can queue work.
+`needs-decision`. Only maintainers can set labels, so nobody else can queue work. An issue that a
+ticket names in its frontmatter (`issues: [N]`) is planned: its work is those tickets, so it is
+not a task of its own.
 
 Ticket status comes from origin/main. Work in progress comes from open PRs, local worktrees and
 their `.owner` PID, and `ticket/*` branches on origin.
@@ -78,13 +80,14 @@ def task_of(branch: str) -> str | None:
     return ticket_of(branch) or issue_of(branch)
 
 
-def agent_ready_issues() -> dict[str, dict]:
+def agent_ready_issues(planned: set[str]) -> dict[str, dict]:
     issues = json.loads(run("gh", "issue", "list", "--state", "open", "--label", "agent-ready",
                             "--limit", "100", "--json", "number,title,labels"))
     return {
         f"issue {i['number']}": {"title": i["title"], "status": "todo", "deps": [], "issues": []}
         for i in sorted(issues, key=lambda i: i["number"])
         if "needs-decision" not in {l["name"] for l in i["labels"]}
+        and str(i["number"]) not in planned
     }
 
 
@@ -137,7 +140,7 @@ def main() -> int:
     tickets = tickets_on_main()
     if "--closable" in args:
         return closable(tickets)
-    issues = agent_ready_issues()
+    issues = agent_ready_issues({i for t in tickets.values() for i in t["issues"]})
     tickets.update(issues)
     prs, trees, branches = open_prs(), worktrees(), remote_branches()
 
