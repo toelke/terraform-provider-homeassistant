@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 depends_on: [022, 026]
 issues: [41]
 adrs: [0017]
@@ -21,4 +21,4 @@ already tested.
 - Unit tests only, against the existing fakes. No user-visible change, so no CHANGELOG entry.
 
 ## Acceptance criteria
-- [ ] Each case above has a unit test.
+- [x] Each case above has a unit test.

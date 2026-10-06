@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -399,6 +400,118 @@ func TestValidateMQTT(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			diags := validateMQTT(context.Background(), resource.ValidateConfigRequest{Config: mqttConfig(t, tc.attrs)})
 			checkDiags(t, diags, tc.want)
+		})
+	}
+}
+
+// fakeEntryFlows serves the reconfigure flow and the options flow of the ESPHome entry E1, each
+// with one form. It records the data submitted to each flow.
+type fakeEntryFlows struct {
+	t         *testing.T
+	submitted []string // "reconfigure <data>" or "options <data>"
+}
+
+func (f *fakeEntryFlows) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	var body map[string]any
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil && r.Method != http.MethodDelete {
+		f.t.Errorf("%s %s: %v", r.Method, r.URL.Path, err)
+	}
+	data, _ := json.Marshal(body)
+	switch r.Method + " " + r.URL.Path {
+	case "POST /api/config/config_entries/flow":
+		if body["entry_id"] != "E1" {
+			f.t.Errorf("flow started with %s, want a reconfigure flow of E1", data)
+		}
+		_, _ = w.Write([]byte(form("reconfigure", `[{"name":"host","required":true},{"name":"port","required":true}]`)))
+	case "POST /api/config/config_entries/flow/f1":
+		f.submitted = append(f.submitted, "reconfigure "+string(data))
+		_, _ = w.Write([]byte(`{"type":"abort","flow_id":"f1","reason":"reconfigure_successful"}`))
+	case "POST /api/config/config_entries/options/flow":
+		if body["handler"] != "E1" {
+			f.t.Errorf("options flow started with %s, want one of E1", data)
+		}
+		_, _ = w.Write([]byte(`{"type":"form","flow_id":"o1","step_id":"init","errors":{},"data_schema":` +
+			`[{"name":"allow_service_calls","optional":true},{"name":"subscribe_logs","optional":true}]}`))
+	case "POST /api/config/config_entries/options/flow/o1":
+		f.submitted = append(f.submitted, "options "+string(data))
+		_, _ = w.Write([]byte(`{"type":"create_entry","flow_id":"o1","result":true}`))
+	default:
+		f.t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		w.WriteHeader(http.StatusNotFound)
+	}
+}
+
+// esphome returns an ESPHome model of the entry E1.
+func esphome() esphomeModel {
+	return esphomeModel{
+		entryModel: entryModel{
+			ID: types.StringValue("E1"), Title: types.StringValue("kitchen"),
+			State: types.StringValue("loaded"), DisabledBy: types.StringNull(),
+		},
+		Host:              types.StringValue("kitchen.local"),
+		Port:              types.Int64Value(6053),
+		NoisePSK:          types.StringNull(),
+		Password:          types.StringNull(),
+		AllowServiceCalls: types.BoolValue(false),
+		SubscribeLogs:     types.BoolValue(false),
+	}
+}
+
+func TestTypedIntegrationUpdateRunsOnlyTheChangedFlows(t *testing.T) {
+	for name, tc := range map[string]struct {
+		edit func(*esphomeModel)
+		want []string
+	}{
+		"nothing changed": {edit: func(*esphomeModel) {}},
+		"host changed": {
+			edit: func(m *esphomeModel) { m.Host = types.StringValue("kitchen.lan") },
+			want: []string{`reconfigure {"host":"kitchen.lan","port":6053}`},
+		},
+		"password changed": {
+			edit: func(m *esphomeModel) { m.Password = types.StringValue("hunter2") },
+			want: []string{`reconfigure {"host":"kitchen.local","port":6053}`},
+		},
+		"option changed": {
+			edit: func(m *esphomeModel) { m.SubscribeLogs = types.BoolValue(true) },
+			want: []string{`options {"allow_service_calls":false,"subscribe_logs":true}`},
+		},
+		"both changed": {
+			edit: func(m *esphomeModel) {
+				m.Port = types.Int64Value(6054)
+				m.AllowServiceCalls = types.BoolValue(true)
+			},
+			want: []string{
+				`reconfigure {"host":"kitchen.local","port":6054}`,
+				`options {"allow_service_calls":true,"subscribe_logs":false}`,
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := &fakeEntryFlows{t: t}
+			srv := httptest.NewServer(f)
+			defer srv.Close()
+			u, _ := url.Parse(srv.URL)
+			c := client.New(client.Config{URL: u, Token: "t", Timeout: 5 * time.Second})
+			r := NewESPHome().(*typedIntegration[esphomeModel, *esphomeModel])
+			r.Configure(t.Context(), resource.ConfigureRequest{ProviderData: c}, &resource.ConfigureResponse{})
+
+			prior, plan := esphome(), esphome()
+			tc.edit(&plan)
+			state, planned := stateOf(t, r, prior), stateOf(t, r, plan)
+			resp := resource.UpdateResponse{State: state}
+			r.Update(t.Context(), resource.UpdateRequest{
+				Plan: tfsdk.Plan(planned), State: state,
+			}, &resp)
+
+			if resp.Diagnostics.HasError() {
+				t.Fatal(resp.Diagnostics)
+			}
+			if !slices.Equal(f.submitted, tc.want) {
+				t.Errorf("submitted = %q\nwant      %q", f.submitted, tc.want)
+			}
+			if !resp.State.Raw.Equal(planned.Raw) {
+				t.Errorf("state = %v, want the plan", resp.State.Raw)
+			}
 		})
 	}
 }
