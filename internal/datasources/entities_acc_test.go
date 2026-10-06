@@ -91,13 +91,10 @@ func entitiesClient(t *testing.T) *client.HAClient {
 // registry only shortly after the create returns, so it retries for a while.
 func updateEntity(t *testing.T, c *client.HAClient, fields map[string]any) {
 	t.Helper()
-	var err error
-	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(200 * time.Millisecond) {
-		if err = c.WS.Command(context.Background(), "config/entity_registry/update", fields, nil); err == nil {
-			return
-		}
-	}
-	t.Fatal(err)
+	acctest.Eventually(t, 10*time.Second, fmt.Sprintf("updating %s", fields["entity_id"]), func() (bool, error) {
+		err := c.WS.Command(context.Background(), "config/entity_registry/update", fields, nil)
+		return err == nil, err
+	})
 }
 
 // setUpHiddenEntities creates an area with two input booleans that both have the friendly name
@@ -335,30 +332,29 @@ func setUpTwinDevices(t *testing.T) (deviceIDs, entityIDs [2]string) {
 
 		// The broker connection comes up shortly after the entry is set up, so the discovery
 		// message is published until the device and its sensor appear.
-		for deadline := time.Now().Add(30 * time.Second); entityIDs[i] == ""; time.Sleep(500 * time.Millisecond) {
-			if time.Now().After(deadline) {
-				t.Fatalf("MQTT device %s did not appear", id)
-			}
+		acctest.Eventually(t, 30*time.Second, "MQTT device "+id+" and its sensor", func() (bool, error) {
 			_ = c.REST.Do(ctx, http.MethodPost, "services/mqtt/publish",
 				map[string]any{"topic": topic, "payload": string(config), "retain": true}, nil)
 			list, err := devices.List(ctx)
-			must(err)
+			if err != nil {
+				return false, err
+			}
 			for _, d := range list {
 				if slices.ContainsFunc(d.Identifiers, func(ident []string) bool { return slices.Equal(ident, []string{"mqtt", id}) }) {
 					deviceIDs[i] = d.ID
 				}
 			}
 			if deviceIDs[i] == "" {
-				continue
+				return false, nil
 			}
 			ents, err := registry.List(ctx)
-			must(err)
 			for _, e := range ents {
 				if e.DeviceID != nil && *e.DeviceID == deviceIDs[i] {
 					entityIDs[i] = e.EntityID
 				}
 			}
-		}
+			return entityIDs[i] != "", err
+		})
 	}
 
 	return deviceIDs, entityIDs

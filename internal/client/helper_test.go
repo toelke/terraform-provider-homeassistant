@@ -2,59 +2,12 @@ package client
 
 import (
 	"context"
-	"encoding/json"
-	"maps"
 	"testing"
 )
 
-// fakeHelpers is a WSCommander that serves `input_boolean/*` from memory, replacing the whole
-// helper on update like HA does.
-type fakeHelpers struct {
-	items []map[string]any
-}
-
-func (f *fakeHelpers) Command(_ context.Context, typ string, params map[string]any, result any) error {
-	var reply any
-	switch typ {
-	case "input_boolean/list":
-		reply = f.items
-	case "input_boolean/create":
-		h := maps.Clone(params)
-		h["id"] = Slugify(params["name"].(string))
-		f.items = append(f.items, h)
-		reply = h
-	case "input_boolean/update":
-		for i, h := range f.items {
-			if h["id"] == params["input_boolean_id"] {
-				n := maps.Clone(params)
-				delete(n, "input_boolean_id")
-				n["id"] = h["id"]
-				f.items[i] = n
-				reply = n
-			}
-		}
-	case "input_boolean/delete":
-		for i, h := range f.items {
-			if h["id"] == params["input_boolean_id"] {
-				f.items = append(f.items[:i], f.items[i+1:]...)
-				return nil
-			}
-		}
-		return &WSError{Code: "not_found", Message: "Unable to find input_boolean_id"}
-	}
-	if result == nil {
-		return nil
-	}
-	b, err := json.Marshal(reply)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(b, result)
-}
-
 func TestHelpers(t *testing.T) {
 	ctx := context.Background()
-	helpers := Helpers(&fakeHelpers{}, "input_boolean")
+	helpers := Helpers(fakeStore("input_boolean", "id", "input_boolean_id", true), "input_boolean")
 
 	created, err := helpers.Create(ctx, map[string]any{"name": "Guest Mode", "icon": "mdi:account"})
 	if err != nil {

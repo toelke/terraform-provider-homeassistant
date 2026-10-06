@@ -123,6 +123,7 @@ func (r *floorResource) Create(ctx context.Context, req resource.CreateRequest, 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	fields = withoutNulls(fields)
 
 	g := generatedID{
 		kind:     "floor",

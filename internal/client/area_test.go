@@ -2,30 +2,18 @@ package client
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 )
 
-// fakeAreaRegistry is a WSCommander that answers `config/area_registry/list` with a fixed
-// reply, as HA sends it.
-type fakeAreaRegistry struct{ reply string }
-
-func (f fakeAreaRegistry) Command(_ context.Context, typ string, _ map[string]any, result any) error {
-	if typ != "config/area_registry/list" {
-		return &WSError{Code: "unknown_command", Message: typ}
-	}
-	return json.Unmarshal([]byte(f.reply), result)
-}
-
 func TestAreasDecode(t *testing.T) {
-	areas := Areas(fakeAreaRegistry{reply: `[
+	areas := Areas(fakeWS{"config/area_registry/list": fixed(`[
 		{"area_id": "kitchen", "name": "Kitchen", "floor_id": "ground_floor", "icon": "mdi:stove",
 		 "aliases": ["Cookhouse"], "labels": ["managed"], "picture": "/api/image/serve/abc/512x512",
 		 "temperature_entity_id": "sensor.kitchen_temperature",
 		 "humidity_entity_id": "sensor.kitchen_humidity", "created_at": 0, "modified_at": 0},
 		{"area_id": "hall", "name": "Hall", "floor_id": null, "icon": null, "aliases": [],
 		 "labels": [], "picture": null, "temperature_entity_id": null, "humidity_entity_id": null}
-	]`})
+	]`)})
 
 	k, ok, err := areas.Get(context.Background(), "kitchen")
 	if err != nil || !ok {

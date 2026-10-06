@@ -13,19 +13,8 @@ import (
 	"github.com/toelke/terraform-provider-homeassistant/internal/client"
 )
 
-// inputBooleanType returns the object type of `homeassistant_input_boolean`.
-func inputBooleanType(t *testing.T) types.ObjectType {
-	t.Helper()
-	resp := &resource.SchemaResponse{}
-	NewInputBoolean().Schema(context.Background(), resource.SchemaRequest{}, resp)
-	if resp.Diagnostics.HasError() {
-		t.Fatal(resp.Diagnostics)
-	}
-	return resp.Schema.Type().(types.ObjectType)
-}
-
 func TestHelperFieldsLeavesOutUnset(t *testing.T) {
-	typ := inputBooleanType(t)
+	typ := helperType(t, NewInputBoolean())
 	obj := types.ObjectValueMust(typ.AttrTypes, map[string]attr.Value{
 		"id":        types.StringValue("guest_mode"),
 		"entity_id": types.StringUnknown(),
@@ -44,7 +33,7 @@ func TestHelperFieldsLeavesOutUnset(t *testing.T) {
 }
 
 func TestHelperObject(t *testing.T) {
-	typ := inputBooleanType(t)
+	typ := helperType(t, NewInputBoolean())
 	r := NewInputBoolean().(*helperResource)
 	got, diags := r.helperObject(typ, client.Helper{"id": "guest_mode", "name": "Guest mode", "initial": true})
 	if diags.HasError() {
