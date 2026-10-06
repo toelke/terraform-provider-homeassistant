@@ -85,18 +85,11 @@ func (r *typedIntegration[M, P]) Metadata(_ context.Context, req resource.Metada
 }
 
 func (r *typedIntegration[M, P]) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	computed := func(desc string) schema.StringAttribute {
-		return schema.StringAttribute{
-			Description:   desc,
-			Computed:      true,
-			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
-		}
-	}
 	attrs := map[string]schema.Attribute{
-		"id":          computed("The config entry's `entry_id`, assigned by Home Assistant. Import with this ID."),
-		"title":       computed("Title of the config entry, chosen by the integration."),
-		"state":       computed("State of the config entry when it was last read, e.g. `loaded` or `setup_error`."),
-		"disabled_by": computed("Who disabled the config entry, e.g. `user`; null if it is enabled."),
+		"id":          computedString("The config entry's `entry_id`, assigned by Home Assistant. Import with this ID."),
+		"title":       computedString("Title of the config entry, chosen by the integration."),
+		"state":       computedString("State of the config entry when it was last read, e.g. `loaded` or `setup_error`."),
+		"disabled_by": computedString("Who disabled the config entry, e.g. `user`; null if it is enabled."),
 	}
 	maps.Copy(attrs, r.spec.attributes)
 	resp.Schema = schema.Schema{Description: r.spec.description, Attributes: attrs}

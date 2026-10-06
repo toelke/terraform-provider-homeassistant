@@ -191,3 +191,74 @@ resource "homeassistant_device_settings" "missing" {
 		},
 	})
 }
+
+// A device and entity disabled through their config entry stay disabled: `disabled = false` reads
+// as no drift, and neither create nor destroy clears a flag the user did not set. HA refuses to
+// enable an entity of a disabled device, so writing `disabled_by: null` would fail.
+func TestAccSettings_DisabledByConfigEntry(t *testing.T) {
+	entityID := moonEntity(t)
+	c := haClient(t)
+	e, ok, err := client.Entities(c.WS).Get(context.Background(), entityID)
+	if err != nil || !ok || e.DeviceID == nil {
+		t.Fatalf("no device for %s: ok %v, err %v, entry %+v", entityID, ok, err, e)
+	}
+	deviceID := *e.DeviceID
+	d, _, err := client.Devices(c.WS).Get(context.Background(), deviceID)
+	if err != nil || len(d.ConfigEntries) != 1 {
+		t.Fatalf("config entries of %s: %v, err %v", deviceID, d.ConfigEntries, err)
+	}
+	disabledByEntry := resource.ComposeAggregateTestCheckFunc(
+		checkDevice(t, deviceID, func(d client.Device) error {
+			if deref(d.DisabledBy) != "config_entry" {
+				return fmt.Errorf("device disabled_by = %s, want config_entry", deref(d.DisabledBy))
+			}
+			return nil
+		}),
+		checkEntityEntry(t, entityID, func(e client.EntityEntry) error {
+			if deref(e.DisabledBy) != "config_entry" {
+				return fmt.Errorf("entity disabled_by = %s, want config_entry", deref(e.DisabledBy))
+			}
+			return nil
+		}),
+	)
+	config := acctest.ProviderConfig + fmt.Sprintf(`
+resource "homeassistant_device_settings" "moon" {
+  device_id = %q
+  disabled  = false
+}
+
+resource "homeassistant_entity_settings" "moon" {
+  entity_id = %q
+  disabled  = false
+}
+`, deviceID, entityID)
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			acctest.PreCheck(t)
+			err := c.WS.Command(context.Background(), "config_entries/disable",
+				map[string]any{"entry_id": d.ConfigEntries[0], "disabled_by": "user"}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := disabledByEntry(nil); err != nil {
+				t.Fatal(err)
+			}
+		},
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		CheckDestroy:             disabledByEntry,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("homeassistant_device_settings.moon", "disabled", "false"),
+					resource.TestCheckResourceAttr("homeassistant_entity_settings.moon", "disabled", "false"),
+					disabledByEntry,
+				),
+			},
+			{
+				Config:   config,
+				PlanOnly: true,
+			},
+		},
+	})
+}

@@ -55,13 +55,6 @@ func (r *integrationResource) Metadata(_ context.Context, req resource.MetadataR
 }
 
 func (r *integrationResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	computed := func(desc string) schema.StringAttribute {
-		return schema.StringAttribute{
-			Description:   desc,
-			Computed:      true,
-			PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
-		}
-	}
 	replaceUnlessImported := dynamicplanmodifier.RequiresReplaceIf(stepsChanged,
 		"Changing the steps replaces the config entry, except right after an import.",
 		"Changing the steps replaces the config entry, except right after an import.")
@@ -105,9 +98,9 @@ func (r *integrationResource) Schema(_ context.Context, _ resource.SchemaRequest
 				Validators:    []validator.Dynamic{stepsValidator{sensitive: true}},
 				PlanModifiers: []planmodifier.Dynamic{replaceUnlessImported},
 			},
-			"title":       computed("Title of the config entry, chosen by the integration."),
-			"state":       computed("State of the config entry when it was last read, e.g. `loaded` or `setup_error`."),
-			"disabled_by": computed("Who disabled the config entry, e.g. `user`; null if it is enabled."),
+			"title":       computedString("Title of the config entry, chosen by the integration."),
+			"state":       computedString("State of the config entry when it was last read, e.g. `loaded` or `setup_error`."),
+			"disabled_by": computedString("Who disabled the config entry, e.g. `user`; null if it is enabled."),
 		},
 	}
 }

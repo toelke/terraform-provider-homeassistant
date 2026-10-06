@@ -86,12 +86,18 @@ func TestEntitySettingsChanges(t *testing.T) {
 		{
 			name: "create writes only the set fields",
 			to:   managed,
+			want: map[string]any{"name": "Moon", "labels": []string{"managed"}, "hidden_by": &user},
+		},
+		{
+			name: "create clears a flag the user set",
+			to:   managed,
+			from: entitySettingsModel{Disabled: types.BoolValue(true)},
 			want: map[string]any{"name": "Moon", "labels": []string{"managed"}, "hidden_by": &user, "disabled_by": nil},
 		},
 		{
-			name: "destroy resets only the set fields",
+			name: "destroy resets only the set fields, and no false flag",
 			from: managed,
-			want: map[string]any{"name": nil, "labels": []string{}, "hidden_by": nil, "disabled_by": nil},
+			want: map[string]any{"name": nil, "labels": []string{}, "hidden_by": nil},
 		},
 		{
 			name: "update writes what changed",
@@ -158,5 +164,27 @@ func TestEntitySettingsRefreshIsFieldGranular(t *testing.T) {
 	}
 	if !m.DeviceID.IsNull() {
 		t.Errorf("device_id = %v, want null", m.DeviceID)
+	}
+}
+
+func TestEntitySettingsWithRegistryFlags(t *testing.T) {
+	user, integration := "user", "integration"
+	entry := client.EntityEntry{HiddenBy: &integration, DisabledBy: &user}
+	to := entitySettingsModel{Hidden: types.BoolValue(false), Disabled: types.BoolValue(false)}
+
+	if !to.needsRegistryFlags(entitySettingsModel{}) {
+		t.Error("newly configured false flags do not need the registry")
+	}
+	if to.needsRegistryFlags(entitySettingsModel{Hidden: types.BoolValue(false), Disabled: types.BoolValue(true)}) {
+		t.Error("managed flags need the registry")
+	}
+	from := to.withRegistryFlags(entitySettingsModel{}, entry)
+	fields, diags := to.changes(context.Background(), from)
+	if diags.HasError() {
+		t.Fatal(diags)
+	}
+	// hidden_by "integration" stays; disabled_by "user" is cleared.
+	if v, ok := fields["disabled_by"]; !ok || v != nil || len(fields) != 1 {
+		t.Errorf("changes = %v, want only disabled_by: null", fields)
 	}
 }

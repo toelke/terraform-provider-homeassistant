@@ -111,6 +111,17 @@ func TestDeviceSettingsChanges(t *testing.T) {
 			from: managed,
 			want: map[string]any{},
 		},
+		{
+			name: "false leaves a flag alone that the user did not set",
+			to:   deviceSettingsModel{Disabled: types.BoolValue(false)},
+			from: deviceSettingsModel{Disabled: types.BoolValue(false)},
+			want: map[string]any{},
+		},
+		{
+			name: "destroy leaves a false flag alone",
+			from: deviceSettingsModel{Disabled: types.BoolValue(false)},
+			want: map[string]any{},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
