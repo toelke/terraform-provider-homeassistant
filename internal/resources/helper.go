@@ -3,9 +3,6 @@ package resources
 import (
 	"context"
 	"fmt"
-	"slices"
-	"strconv"
-	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -335,31 +332,6 @@ func (r *helperResource) Delete(ctx context.Context, req resource.DeleteRequest,
 
 func (r *helperResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
-}
-
-// oneOfValidator accepts one of a fixed set of strings.
-type oneOfValidator []string
-
-var _ validator.String = oneOfValidator(nil)
-
-func (v oneOfValidator) Description(context.Context) string {
-	quoted := make([]string, len(v))
-	for i, s := range v {
-		quoted[i] = strconv.Quote(s)
-	}
-	return "must be one of " + strings.Join(quoted, ", ")
-}
-
-func (v oneOfValidator) MarkdownDescription(ctx context.Context) string {
-	return v.Description(ctx)
-}
-
-func (v oneOfValidator) ValidateString(ctx context.Context, req validator.StringRequest, resp *validator.StringResponse) {
-	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() || slices.Contains(v, req.ConfigValue.ValueString()) {
-		return
-	}
-	resp.Diagnostics.AddAttributeError(req.Path, "Invalid Attribute Value",
-		fmt.Sprintf("Attribute %s %s, got: %q", req.Path, v.Description(ctx), req.ConfigValue.ValueString()))
 }
 
 // configValue returns the config attribute `name` as T. set is false if it is null; known is

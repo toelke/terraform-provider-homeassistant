@@ -3,6 +3,7 @@ package resources
 import (
 	"context"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -32,7 +33,7 @@ func NewESPHome() resource.Resource {
 				Optional:    true,
 				Computed:    true,
 				Default:     int64default.StaticInt64(6053),
-				Validators:  []validator.Int64{int64Between{1, 65535}},
+				Validators:  []validator.Int64{int64validator.Between(1, 65535)},
 			},
 			"noise_psk": schema.StringAttribute{
 				Description: "The device's API encryption key (`api: encryption: key:` in its YAML). " +

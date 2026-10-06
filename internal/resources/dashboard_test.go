@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -30,9 +31,13 @@ func TestURLPathValidator(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			var resp validator.StringResponse
-			urlPathValidator{}.ValidateString(t.Context(), validator.StringRequest{ConfigValue: tc.value}, &resp)
+			urlPathValidator.ValidateString(t.Context(), validator.StringRequest{ConfigValue: tc.value}, &resp)
 			if got := resp.Diagnostics.HasError(); got != tc.wantErr {
 				t.Errorf("error = %v, want %v: %v", got, tc.wantErr, resp.Diagnostics)
+			}
+			// The error shows what a valid value looks like.
+			if resp.Diagnostics.HasError() && !strings.Contains(resp.Diagnostics[0].Detail(), "e.g. \"my-home\"") {
+				t.Errorf("detail = %q, want an example", resp.Diagnostics[0].Detail())
 			}
 		})
 	}

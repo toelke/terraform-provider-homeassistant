@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/dlclark/regexp2"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -57,7 +58,7 @@ func NewInputText() resource.Resource {
 				Optional:    true,
 				Computed:    true,
 				Default:     stringdefault.StaticString("text"),
-				Validators:  []validator.String{oneOfValidator{"text", "password"}},
+				Validators:  []validator.String{stringvalidator.OneOf("text", "password")},
 			},
 		},
 		validate: validateInputText,

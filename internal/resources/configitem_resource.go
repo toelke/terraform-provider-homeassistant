@@ -71,7 +71,7 @@ func (r *configItemResource) Schema(ctx context.Context, _ resource.SchemaReques
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
-				Validators: []validator.String{configItemIDValidator{}},
+				Validators: []validator.String{configItemIDValidator},
 			},
 			"config": schema.DynamicAttribute{
 				Description: r.spec.configDescription,

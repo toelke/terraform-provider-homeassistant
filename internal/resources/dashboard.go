@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
+	"regexp"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -84,7 +85,7 @@ func (r *dashboardResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
-				Validators: []validator.String{urlPathValidator{}},
+				Validators: []validator.String{urlPathValidator},
 			},
 			"title": schema.StringAttribute{
 				Description: "Title shown in the sidebar.",
@@ -292,23 +293,6 @@ func (r *dashboardResource) ImportState(ctx context.Context, req resource.Import
 
 // urlPathValidator rejects a `url_path` without a hyphen at plan time, as HA would at apply
 // time.
-type urlPathValidator struct{}
-
-func (urlPathValidator) Description(context.Context) string {
-	return "must contain a hyphen (-)"
-}
-
-func (v urlPathValidator) MarkdownDescription(ctx context.Context) string {
-	return v.Description(ctx)
-}
-
-func (urlPathValidator) ValidateString(_ context.Context, req validator.StringRequest, resp *validator.StringResponse) {
-	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
-		return
-	}
-	if !strings.Contains(req.ConfigValue.ValueString(), "-") {
-		resp.Diagnostics.AddAttributeError(req.Path, "Invalid url_path",
-			fmt.Sprintf("%q must contain a hyphen (-), e.g. \"my-home\". Home Assistant requires one "+
-				"so that dashboards cannot shadow its built-in panels.", req.ConfigValue.ValueString()))
-	}
-}
+var urlPathValidator = stringvalidator.RegexMatches(regexp.MustCompile(`-`),
+	`must contain a hyphen (-), e.g. "my-home". Home Assistant requires one so that dashboards `+
+		`cannot shadow its built-in panels`)
