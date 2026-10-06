@@ -51,7 +51,8 @@ Do this before taking a new ticket. For each open PR (`gh pr list`), oldest firs
 ## Taking the next task
 
 A task is a ticket in `tickets/`, or a GitHub issue that the maintainer labelled `agent-ready`
-(and not `needs-decision`).
+(and not `needs-decision`). An issue that a ticket names in its `issues` frontmatter is planned:
+its tickets are the work, not the issue.
 
 1. **Pick:** `scripts/tickets.py --next` prints `NNN new`, `issue N new`, or either with
    `resume <worktree or branch>`, and exits 1 when nothing is ready. It applies the rule: resume
