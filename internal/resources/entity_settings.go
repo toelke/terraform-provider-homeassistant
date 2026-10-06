@@ -110,13 +110,8 @@ func (r *entitySettingsResource) Schema(ctx context.Context, _ resource.SchemaRe
 }
 
 func (r *entitySettingsResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
-	}
-	c, ok := req.ProviderData.(*client.HAClient)
-	if !ok {
-		resp.Diagnostics.AddError("Unexpected provider data",
-			fmt.Sprintf("Expected *client.HAClient, got %T. This is a bug in the provider.", req.ProviderData))
+	c := haClient(req, resp)
+	if c == nil {
 		return
 	}
 	r.entities = client.Entities(c.WS)

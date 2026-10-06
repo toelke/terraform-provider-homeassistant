@@ -15,7 +15,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/toelke/terraform-provider-homeassistant/internal/client"
-	"github.com/toelke/terraform-provider-homeassistant/internal/dyntype"
 )
 
 var _ datasource.DataSourceWithConfigure = (*entitiesDataSource)(nil)
@@ -320,16 +319,8 @@ func entitiesValue(states []client.EntityState, hidden map[string]bool) (types.D
 	typs := make(map[string]attr.Type, len(states))
 	values := make(map[string]attr.Value, len(states))
 	for _, s := range states {
-		raw := s.Attributes
-		if len(raw) == 0 {
-			raw = json.RawMessage("{}")
-		}
-		attrs, err := dyntype.FromJSON(raw)
+		attrs, flat, err := decodeAttributes(&s)
 		if err != nil {
-			return types.Dynamic{}, fmt.Errorf("entity %s: %w", s.EntityID, err)
-		}
-		var flat map[string]any
-		if err := json.Unmarshal(raw, &flat); err != nil {
 			return types.Dynamic{}, fmt.Errorf("entity %s: %w", s.EntityID, err)
 		}
 		a := attrs.UnderlyingValue()

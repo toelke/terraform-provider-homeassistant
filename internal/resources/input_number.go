@@ -53,7 +53,7 @@ func NewInputNumber() resource.Resource {
 			},
 		},
 		validate: validateInputNumber,
-	})()
+	})
 }
 
 // validateInputNumber checks `min < max`, `step > 0`, and that `initial` is within the range.

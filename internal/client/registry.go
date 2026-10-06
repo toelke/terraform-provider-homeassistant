@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"errors"
+	"maps"
 )
 
 // Registry is one of HA's WebSocket registries with the commands `<prefix>/list`, `/create`,
@@ -47,9 +48,7 @@ func (r Registry[T]) Create(ctx context.Context, fields map[string]any) (T, erro
 // Update sets fields on the object with the given ID and returns the result.
 func (r Registry[T]) Update(ctx context.Context, id string, fields map[string]any) (T, error) {
 	params := make(map[string]any, len(fields)+1)
-	for k, v := range fields {
-		params[k] = v
-	}
+	maps.Copy(params, fields)
 	params[r.key] = id
 	var item T
 	err := r.ws.Command(ctx, r.prefix+"/update", params, &item)

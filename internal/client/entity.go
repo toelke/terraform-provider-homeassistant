@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"errors"
+	"maps"
 )
 
 // EntityEntry is an entry of the entity registry.
@@ -30,7 +31,7 @@ func Entities(ws WSCommander) EntityRegistry {
 	return EntityRegistry{ws: ws}
 }
 
-// List returns every entry.
+// List returns every entry. Only the acceptance tests use it.
 func (r EntityRegistry) List(ctx context.Context) ([]EntityEntry, error) {
 	var entries []EntityEntry
 	err := r.ws.Command(ctx, "config/entity_registry/list", nil, &entries)
@@ -50,9 +51,7 @@ func (r EntityRegistry) Get(ctx context.Context, entityID string) (entry EntityE
 // Update sets fields on the entry of entityID and returns the result.
 func (r EntityRegistry) Update(ctx context.Context, entityID string, fields map[string]any) (EntityEntry, error) {
 	params := make(map[string]any, len(fields)+1)
-	for k, v := range fields {
-		params[k] = v
-	}
+	maps.Copy(params, fields)
 	params["entity_id"] = entityID
 	var result struct {
 		EntityEntry EntityEntry `json:"entity_entry"`

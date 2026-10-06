@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
 )
@@ -107,7 +108,7 @@ func TestDynamicSemanticEquals(t *testing.T) {
 		"float64 fraction":  {NewValue(obj(map[string]attr.Value{"n": types.Float64Value(0.1)})), `{"n":0.1}`, true},
 		"int64":             {NewValue(obj(map[string]attr.Value{"n": types.Int64Value(7)})), `{"n":7.0}`, true},
 		"null prior":        {NewNull(), `{}`, false},
-		"unknown prior":     {NewUnknown(), `{}`, false},
+		"unknown prior":     {Value{DynamicValue: basetypes.NewDynamicUnknown()}, `{}`, false},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -171,7 +172,7 @@ func TestFromJSONEncodesForTerraform(t *testing.T) {
 }
 
 func TestJSONRejectsNullAndUnknown(t *testing.T) {
-	for name, v := range map[string]Value{"null": NewNull(), "unknown": NewUnknown()} {
+	for name, v := range map[string]Value{"null": NewNull(), "unknown": {DynamicValue: basetypes.NewDynamicUnknown()}} {
 		if _, err := v.JSON(); err == nil {
 			t.Errorf("%s: expected an error", name)
 		}

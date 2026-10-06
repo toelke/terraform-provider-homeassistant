@@ -42,10 +42,8 @@ var (
 )
 
 // newHelper returns the resource for a helper domain.
-func newHelper(spec helperSpec) func() resource.Resource {
-	return func() resource.Resource {
-		return &helperResource{spec: spec}
-	}
+func newHelper(spec helperSpec) resource.Resource {
+	return &helperResource{spec: spec}
 }
 
 // helperResource manages helpers of one domain. Its model is the whole resource object, so the
@@ -114,13 +112,8 @@ func (r *helperResource) ValidateConfig(ctx context.Context, req resource.Valida
 }
 
 func (r *helperResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
-	}
-	c, ok := req.ProviderData.(*client.HAClient)
-	if !ok {
-		resp.Diagnostics.AddError("Unexpected provider data",
-			fmt.Sprintf("Expected *client.HAClient, got %T. This is a bug in the provider.", req.ProviderData))
+	c := haClient(req, resp)
+	if c == nil {
 		return
 	}
 	r.helpers = client.Helpers(c.WS, r.spec.domain)

@@ -9,5 +9,5 @@ func NewInputButton() resource.Resource {
 	return newHelper(helperSpec{
 		domain:      "input_button",
 		description: "A button helper (`input_button`): a button that automations can react to when it is pressed.",
-	})()
+	})
 }

@@ -122,7 +122,8 @@ func (c *WSClient) Command(parent context.Context, typ string, params map[string
 	return nil
 }
 
-// Close closes the connection if one is open. A later command dials again.
+// Close closes the connection if one is open. A later command dials again. Only tests use it:
+// the provider's connection lives as long as the plugin process.
 func (c *WSClient) Close() error {
 	c.mu.Lock()
 	conn := c.conn

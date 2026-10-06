@@ -109,6 +109,9 @@ where HA rewrote the config on save (e.g. renamed old keys). See ADR-0023.
 `provider::homeassistant::state_trigger(...)`) that returns a plain object for use inside a
 dynamic config. Builder functions are optional and give typed ergonomics on top of dynamic config.
 
+**Config item** — An automation, script, or scene: an item that HA's config editor stores through
+REST (`/api/config/<domain>/config/<id>`). Its three resources share one implementation.
+
 **User-chosen ID** — An ID the user sets and HA accepts as given: automation, script, scene.
 See ADR-0008.
 

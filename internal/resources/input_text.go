@@ -61,7 +61,7 @@ func NewInputText() resource.Resource {
 			},
 		},
 		validate: validateInputText,
-	})()
+	})
 }
 
 // validateInputText checks `0 ≤ min ≤ max ≤ 255`, that `initial` has a length in that range,

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
 	"github.com/toelke/terraform-provider-homeassistant/internal/client"
 	"github.com/toelke/terraform-provider-homeassistant/internal/dyntype"
@@ -52,7 +53,7 @@ func TestStepsValidator(t *testing.T) {
 		"steps":                {value: mustDyn(t, `{"user": {"host": "h"}}`)},
 		"empty step":           {value: mustDyn(t, `{"user": {}}`)},
 		"null":                 {value: dyntype.NewNull()},
-		"unknown":              {value: dyntype.NewUnknown()},
+		"unknown":              {value: dyntype.Value{DynamicValue: basetypes.NewDynamicUnknown()}},
 		"no steps":             {value: mustDyn(t, `{}`), wantErr: "At least one step"},
 		"no sensitive steps":   {value: mustDyn(t, `{}`), sensitive: true},
 		"not an object":        {value: mustDyn(t, `["user"]`), wantErr: "Must be an object"},

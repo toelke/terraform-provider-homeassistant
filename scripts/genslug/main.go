@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"go/format"
 	"log"
+	"maps"
 	"os"
 	"slices"
 
@@ -74,13 +75,7 @@ func main() {
 	b.WriteString("// htmlEntities is Python's html.entities.name2codepoint: the HTML 4 named character\n")
 	b.WriteString("// references that python-slugify decodes.\n")
 	b.WriteString("var htmlEntities = map[string]rune{\n")
-	for _, name := range slices.Sorted(func(yield func(string) bool) {
-		for k := range t.Entities {
-			if !yield(k) {
-				return
-			}
-		}
-	}) {
+	for _, name := range slices.Sorted(maps.Keys(t.Entities)) {
 		fmt.Fprintf(&b, "%q: %#04x,\n", name, t.Entities[name])
 	}
 	b.WriteString("}\n\n")

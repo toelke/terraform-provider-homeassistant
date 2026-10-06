@@ -1,4 +1,3 @@
-// Package resources holds the provider's resources.
 package resources
 
 import (
