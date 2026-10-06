@@ -103,7 +103,8 @@ See [functions.md](functions.md).
 
 **IDs.** Each resource's import ID is its `id` attribute. Schema descriptions state the format.
 Generated IDs follow ADR-0009 (collision check, optional `id` via create-then-rename).
-User-chosen IDs follow ADR-0008 (`^[a-z0-9_]+$`, change forces replacement).
+User-chosen IDs follow ADR-0008 (`^[a-z0-9_]+$`, change forces replacement); create fails if
+the ID is taken (ADR-0024).
 
 **Dynamic config.** Attributes named `config` are dynamic, use the semantic-equality custom type
 (ADR-0006), and are passed to HA unchanged (ADR-0005). HA may rewrite a config when it saves it,
@@ -116,6 +117,8 @@ equal to the baseline is never drift (ADR-0023).
 - An unreachable HA is an error, with a hint to use `-refresh=false` (ADR-0011).
 - 401 → "token invalid or expired".
 - WS `success: false` → surface `error.code` and `error.message`.
+- HA rejecting a `config` (REST 400, or a WS error when saving it) → a diagnostic on the `config`
+  attribute.
 - Config flow `abort` → surface the reason, with friendly text for `already_configured` and
   `single_instance_allowed` (suggest import), `cannot_connect`, and `invalid_auth`. The last two
   get the same text when a form rejects its data with them.

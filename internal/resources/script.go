@@ -15,7 +15,7 @@ func NewScript() resource.Resource {
 			"Other automations and scripts run it with the action `script.<id>`.",
 		idDescription: "Config ID of the script, e.g. `goodnight`: lowercase letters, digits, and " +
 			"underscores. It is also the object ID of the script's entity. Changing it replaces " +
-			"the script. Import with this ID.",
+			"the script. Creating fails if one with this ID already exists; import it instead.",
 		configDescription: "The script (`alias`, `description`, `mode`, `icon`, `fields`, " +
 			"`sequence`, …), as an HCL object or `yamldecode(file(\"script.yaml\"))`. YAML " +
 			"copied from the script editor works unchanged. Home Assistant validates it on apply. " +

@@ -66,11 +66,22 @@ resource "homeassistant_script" "leaving" {
 ### Required
 
 - `config` (Dynamic) The script (`alias`, `description`, `mode`, `icon`, `fields`, `sequence`, …), as an HCL object or `yamldecode(file("script.yaml"))`. YAML copied from the script editor works unchanged. Home Assistant validates it on apply. When it saves, Home Assistant renames `service` to `action` in the sequence; the provider keeps your spelling, and the plan stays empty.
-- `id` (String) Config ID of the script, e.g. `goodnight`: lowercase letters, digits, and underscores. It is also the object ID of the script's entity. Changing it replaces the script. Import with this ID.
+- `id` (String) Config ID of the script, e.g. `goodnight`: lowercase letters, digits, and underscores. It is also the object ID of the script's entity. Changing it replaces the script. Creating fails if one with this ID already exists; import it instead.
+
+### Optional
+
+- `timeouts` (Attributes) (see [below for nested schema](#nestedatt--timeouts))
 
 ### Read-Only
 
 - `entity_id` (String) Entity ID of the script, `script.<id>`.
+
+<a id="nestedatt--timeouts"></a>
+### Nested Schema for `timeouts`
+
+Optional:
+
+- `create` (String) A string that can be [parsed as a duration](https://pkg.go.dev/time#ParseDuration) consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours).
 
 ## Import
 

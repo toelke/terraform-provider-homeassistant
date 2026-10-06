@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"sync/atomic"
 	"testing"
-	"time"
 )
 
 func TestConfigItemsGetStripsID(t *testing.T) {
@@ -71,40 +70,85 @@ func TestConfigItemsDelete(t *testing.T) {
 	}
 }
 
-func TestConfigItemsFindEntityWaitsForReload(t *testing.T) {
-	var calls atomic.Int32
+func TestConfigItemsFindEntityByAttribute(t *testing.T) {
 	c := serve(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/states" {
 			t.Errorf("path = %s", r.URL.Path)
 		}
-		// Before the reload: only a script with the same id, and an entity with a numeric id.
-		states := `[{"entity_id":"script.away","attributes":{"id":"away"}},
-			{"entity_id":"sensor.x","attributes":{"id":5}}]`
-		if calls.Add(1) >= 3 {
-			states = `[{"entity_id":"script.away","attributes":{"id":"away"}},
-				{"entity_id":"automation.leaving_home","attributes":{"id":"away"}}]`
-		}
-		_, _ = w.Write([]byte(states))
+		// A script with the same id, an entity with a numeric id, and the automation, whose entity
+		// ID comes from its alias.
+		_, _ = w.Write([]byte(`[{"entity_id":"script.away","attributes":{"id":"away"}},
+			{"entity_id":"sensor.x","attributes":{"id":5}},
+			{"entity_id":"automation.leaving_home","attributes":{"id":"away"}}]`))
 	})
-	got, err := NewAutomations(c).FindEntity(t.Context(), "away", 10*time.Second)
+	got, err := NewAutomations(c).FindEntity(t.Context(), "away", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got != "automation.leaving_home" {
 		t.Errorf("entity = %q", got)
 	}
-	if n := calls.Load(); n != 3 {
-		t.Errorf("polled %d times, want 3", n)
-	}
 }
 
-func TestConfigItemsFindEntityGivesUp(t *testing.T) {
+func TestConfigItemsFindEntityNotFound(t *testing.T) {
 	c := serve(t, func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`[]`))
 	})
-	_, err := NewAutomations(c).FindEntity(t.Context(), "away", 0)
+	_, err := NewAutomations(c).FindEntity(t.Context(), "away", "")
 	if !errors.Is(err, ErrEntityNotFound) {
 		t.Errorf("err = %v, want ErrEntityNotFound", err)
+	}
+}
+
+// With the entity ID found before, a refresh reads only that entity's state.
+func TestConfigItemsFindEntityChecksKnownFirst(t *testing.T) {
+	c := serve(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/states/automation.leaving_home" {
+			t.Errorf("path = %s", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"entity_id":"automation.leaving_home","attributes":{"id":"away"}}`))
+	})
+	got, err := NewAutomations(c).FindEntity(t.Context(), "away", "automation.leaving_home")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "automation.leaving_home" {
+		t.Errorf("entity = %q", got)
+	}
+}
+
+// A known entity that is gone (renamed by the user) or now belongs to another item falls back to
+// all states. One in another domain is not read at all.
+func TestConfigItemsFindEntityKnownStale(t *testing.T) {
+	for name, tc := range map[string]struct {
+		known string
+		state func(http.ResponseWriter)
+	}{
+		"renamed": {"automation.old_name", func(w http.ResponseWriter) {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"message":"Entity not found."}`))
+		}},
+		"other item": {"automation.old_name", func(w http.ResponseWriter) {
+			_, _ = w.Write([]byte(`{"entity_id":"automation.old_name","attributes":{"id":"other"}}`))
+		}},
+		"other domain": {"script.away", func(http.ResponseWriter) { t.Error("state of another domain read") }},
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := serve(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/api/states" {
+					_, _ = w.Write([]byte(`[{"entity_id":"automation.new_name","attributes":{"id":"away"}}]`))
+					return
+				}
+				tc.state(w)
+			})
+			got, err := NewAutomations(c).FindEntity(t.Context(), "away", tc.known)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != "automation.new_name" {
+				t.Errorf("entity = %q", got)
+			}
+		})
 	}
 }
 
@@ -125,27 +169,35 @@ func TestScriptsSaveLeavesIDOut(t *testing.T) {
 }
 
 func TestScriptsFindEntityByEntityID(t *testing.T) {
-	var calls atomic.Int32
-	c := serve(t, func(w http.ResponseWriter, _ *http.Request) {
-		// Before the reload: only an automation with the same id, and a script whose entity ID
-		// merely starts with it.
-		states := `[{"entity_id":"automation.goodnight","attributes":{"id":"goodnight"}},
-			{"entity_id":"script.goodnight_2","attributes":{}}]`
-		if calls.Add(1) >= 2 {
-			states = `[{"entity_id":"automation.goodnight","attributes":{"id":"goodnight"}},
-				{"entity_id":"script.goodnight","attributes":{}}]`
+	var reloaded atomic.Bool
+	c := serve(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/states/script.goodnight" {
+			t.Errorf("path = %s", r.URL.Path)
 		}
-		_, _ = w.Write([]byte(states))
+		if !reloaded.Load() {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"message":"Entity not found."}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"entity_id":"script.goodnight","attributes":{}}`))
 	})
-	got, err := NewScripts(c).FindEntity(t.Context(), "goodnight", 10*time.Second)
+	scripts := NewScripts(c)
+	if _, err := scripts.FindEntity(t.Context(), "goodnight", ""); !errors.Is(err, ErrEntityNotFound) {
+		t.Errorf("before the reload: err = %v, want ErrEntityNotFound", err)
+	}
+	reloaded.Store(true)
+	got, err := scripts.FindEntity(t.Context(), "goodnight", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got != "script.goodnight" {
 		t.Errorf("entity = %q", got)
 	}
-	if n := calls.Load(); n != 2 {
-		t.Errorf("polled %d times, want 2", n)
+	if fixed, ok := scripts.FixedEntityID("goodnight"); !ok || fixed != "script.goodnight" {
+		t.Errorf("FixedEntityID = %q, %v", fixed, ok)
+	}
+	if _, ok := NewAutomations(c).FixedEntityID("goodnight"); ok {
+		t.Error("automations have a fixed entity ID")
 	}
 }
 
@@ -170,7 +222,7 @@ func TestScenesSaveAddsIDAndFindEntityByAttribute(t *testing.T) {
 	if err := scenes.Save(t.Context(), "movie", json.RawMessage(`{"name":"Movie"}`)); err != nil {
 		t.Fatal(err)
 	}
-	got, err := scenes.FindEntity(t.Context(), "movie", 0)
+	got, err := scenes.FindEntity(t.Context(), "movie", "")
 	if err != nil {
 		t.Fatal(err)
 	}

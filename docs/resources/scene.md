@@ -52,11 +52,22 @@ resource "homeassistant_scene" "evening" {
 ### Required
 
 - `config` (Dynamic) The scene (`name`, `icon`, `entities`, …), as an HCL object or `yamldecode(file("scene.yaml"))`. `entities` maps entity IDs to the state to set, e.g. `{ "light.tv" = { state = "on", brightness = 80 } }`. YAML copied from the scene editor works unchanged once its `id` line is removed. Home Assistant validates it on apply.
-- `id` (String) Config ID of the scene, e.g. `movie_night`: lowercase letters, digits, and underscores. Changing it replaces the scene. Import with this ID.
+- `id` (String) Config ID of the scene, e.g. `movie_night`: lowercase letters, digits, and underscores. Changing it replaces the scene. Creating fails if one with this ID already exists; import it instead.
+
+### Optional
+
+- `timeouts` (Attributes) (see [below for nested schema](#nestedatt--timeouts))
 
 ### Read-Only
 
 - `entity_id` (String) Entity ID of the scene, e.g. `scene.movie_night`. Home Assistant derives it from the name when the scene is first created, and keeps it afterwards.
+
+<a id="nestedatt--timeouts"></a>
+### Nested Schema for `timeouts`
+
+Optional:
+
+- `create` (String) A string that can be [parsed as a duration](https://pkg.go.dev/time#ParseDuration) consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours).
 
 ## Import
 

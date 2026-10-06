@@ -3,10 +3,14 @@ package resources
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 
+	"github.com/toelke/terraform-provider-homeassistant/internal/client"
 	"github.com/toelke/terraform-provider-homeassistant/internal/dyntype"
 )
 
@@ -64,4 +68,17 @@ func refreshedConfig(prior dyntype.Value, read json.RawMessage, baseline []byte)
 		}
 	}
 	return dyntype.FromJSON(read)
+}
+
+// addSaveError reports err from saving a `config`. Home Assistant rejecting the config (a 400 on
+// REST, an error result on the WebSocket) is attached to the `config` attribute; anything else,
+// such as an unreachable HA, to the resource.
+func addSaveError(diags *diag.Diagnostics, summary string, err error) {
+	var httpErr *client.HTTPError
+	var wsErr *client.WSError
+	if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusBadRequest || errors.As(err, &wsErr) {
+		diags.AddAttributeError(path.Root("config"), summary, client.ErrorDetail(err))
+		return
+	}
+	diags.AddError(summary, client.ErrorDetail(err))
 }

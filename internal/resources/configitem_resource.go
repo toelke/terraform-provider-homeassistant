@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -19,8 +20,9 @@ import (
 	"github.com/toelke/terraform-provider-homeassistant/internal/dyntype"
 )
 
-// entityWait bounds how long Create waits for HA's asynchronous reload to create the entity.
-const entityWait = time.Minute
+// defaultConfigItemCreateTimeout is how long Create waits for HA's asynchronous reload to create
+// the entity, unless `timeouts.create` says otherwise.
+const defaultConfigItemCreateTimeout = 60 * time.Second
 
 // configItemSpec describes one REST config editor domain: automation, script, or scene. Each
 // shares the generic implementation in configItemResource.
@@ -49,16 +51,17 @@ type configItemResource struct {
 }
 
 type configItemModel struct {
-	ID       types.String  `tfsdk:"id"`
-	Config   dyntype.Value `tfsdk:"config"`
-	EntityID types.String  `tfsdk:"entity_id"`
+	ID       types.String   `tfsdk:"id"`
+	Config   dyntype.Value  `tfsdk:"config"`
+	EntityID types.String   `tfsdk:"entity_id"`
+	Timeouts timeouts.Value `tfsdk:"timeouts"`
 }
 
 func (r *configItemResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_" + r.spec.domain
 }
 
-func (r *configItemResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *configItemResource) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: r.spec.description,
 		Attributes: map[string]schema.Attribute{
@@ -83,6 +86,7 @@ func (r *configItemResource) Schema(_ context.Context, _ resource.SchemaRequest,
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"timeouts": timeouts.Attributes(ctx, timeouts.Opts{Create: true}),
 		},
 	}
 }
@@ -106,20 +110,71 @@ func (r *configItemResource) Create(ctx context.Context, req resource.CreateRequ
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if !r.save(ctx, plan, resp.Private, &resp.Diagnostics) {
+	timeout, diags := plan.Timeouts.Create(ctx, defaultConfigItemCreateTimeout)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
 		return
+	}
+	if r.create(ctx, &plan, timeout, resp.Private, &resp.Diagnostics) {
+		resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
+	}
+}
+
+// create creates the item in plan and sets its entity ID, waiting at most timeout for it. It
+// reports problems in diags and returns whether the item was saved, and so belongs in state. An
+// item saved without an entity goes into state with a null `entity_id` and an error, so it is
+// tainted and replaced, not orphaned.
+func (r *configItemResource) create(ctx context.Context, plan *configItemModel, timeout time.Duration, private privateSetter, diags *diag.Diagnostics) bool {
+	id := plan.ID.ValueString()
+	// Saving replaces an existing item with this ID, so fail instead (ADR-0024).
+	_, err := r.items.Get(ctx, id)
+	switch {
+	case errors.Is(err, client.ErrNotFound):
+	case err != nil:
+		diags.AddError("Checking for an existing "+r.spec.domain, client.ErrorDetail(err))
+		return false
+	default:
+		diags.AddAttributeError(path.Root("id"), withArticle(r.spec.domain)+" with this ID already exists",
+			fmt.Sprintf("Home Assistant already has %s with the ID %q. Either import it "+
+				"(`tofu import homeassistant_%s.<name> %s`), or choose another `id`.",
+				withArticle(r.spec.domain), id, r.spec.domain, id))
+		return false
 	}
 
-	entityID, err := r.items.FindEntity(ctx, plan.ID.ValueString(), entityWait)
+	if !r.save(ctx, *plan, private, diags) {
+		return false
+	}
+
+	entityID, err := r.awaitEntity(ctx, id, timeout)
 	if err != nil {
-		// Saved but not found: keep it in state, so it is tainted and replaced, not orphaned.
 		plan.EntityID = types.StringNull()
-		resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
-		resp.Diagnostics.AddError("Finding the "+r.spec.domain+"'s entity", client.ErrorDetail(err))
-		return
+		diags.AddError("Finding the "+r.spec.domain+"'s entity", client.ErrorDetail(err))
+		return true
 	}
 	plan.EntityID = types.StringValue(entityID)
-	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
+	return true
+}
+
+// awaitEntity polls until HA's reload has created the item's entity, for at most timeout.
+func (r *configItemResource) awaitEntity(ctx context.Context, id string, timeout time.Duration) (string, error) {
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	var entityID string
+	var lastErr error
+	err := waitFor(waitCtx, func(ctx context.Context) (bool, error) {
+		var err error
+		entityID, err = r.items.FindEntity(ctx, id, "")
+		if errors.Is(err, client.ErrEntityNotFound) {
+			lastErr = err
+			return false, nil
+		}
+		return err == nil, err
+	})
+	if err != nil && errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil && lastErr != nil {
+		return "", fmt.Errorf("%w within %s.\n\nThe %s was saved, but Home Assistant has not "+
+			"reloaded it yet. If it needs longer, raise `timeouts.create`", lastErr, timeout, r.spec.domain)
+	}
+	return entityID, err
 }
 
 func (r *configItemResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -128,41 +183,54 @@ func (r *configItemResource) Read(ctx context.Context, req resource.ReadRequest,
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	id := state.ID.ValueString()
-	raw, err := r.items.Get(ctx, id)
-	if errors.Is(err, client.ErrNotFound) {
+	if !r.read(ctx, &state, req.Private, &resp.Diagnostics) {
 		resp.State.RemoveResource(ctx)
 		return
 	}
-	if err != nil {
-		resp.Diagnostics.AddError("Reading "+r.spec.domain, client.ErrorDetail(err))
-		return
-	}
-	baseline, diags := storedBaseline(ctx, req.Private)
-	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+}
+
+// read refreshes state from HA. It reports problems in diags and returns false if the item is
+// gone.
+func (r *configItemResource) read(ctx context.Context, state *configItemModel, private privateGetter, diags *diag.Diagnostics) bool {
+	id := state.ID.ValueString()
+	raw, err := r.items.Get(ctx, id)
+	if errors.Is(err, client.ErrNotFound) {
+		return false
+	}
+	if err != nil {
+		diags.AddError("Reading "+r.spec.domain, client.ErrorDetail(err))
+		return true
+	}
+	baseline, d := storedBaseline(ctx, private)
+	diags.Append(d...)
+	if diags.HasError() {
+		return true
+	}
 	config, err := refreshedConfig(state.Config, raw, baseline)
 	if err != nil {
-		resp.Diagnostics.AddError("Reading "+r.spec.domain, err.Error())
-		return
+		diags.AddError("Reading "+r.spec.domain, err.Error())
+		return true
 	}
+	state.Config = config
 
-	entityID, err := r.items.FindEntity(ctx, id, 0)
+	if entityID, ok := r.items.FixedEntityID(id); ok {
+		state.EntityID = types.StringValue(entityID)
+		return true
+	}
+	entityID, err := r.items.FindEntity(ctx, id, state.EntityID.ValueString())
 	switch {
 	case errors.Is(err, client.ErrEntityNotFound):
 		// A reload may still be running; keep what state has.
 	case err != nil:
-		resp.Diagnostics.AddError("Finding the "+r.spec.domain+"'s entity", client.ErrorDetail(err))
-		return
+		diags.AddError("Finding the "+r.spec.domain+"'s entity", client.ErrorDetail(err))
 	default:
 		state.EntityID = types.StringValue(entityID)
 	}
-
-	state.Config = config
-	resp.Diagnostics.Append(resp.State.Set(ctx, state)...)
+	return true
 }
 
 func (r *configItemResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -189,7 +257,7 @@ func (r *configItemResource) save(ctx context.Context, plan configItemModel, pri
 	}
 	id := plan.ID.ValueString()
 	if err := r.items.Save(ctx, id, config); err != nil {
-		diags.AddError("Saving "+r.spec.domain, client.ErrorDetail(err))
+		addSaveError(diags, "Saving "+r.spec.domain, err)
 		return false
 	}
 	stored, err := r.items.Get(ctx, id)

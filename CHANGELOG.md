@@ -40,6 +40,17 @@ breaking changes may land in minor versions and are marked **Breaking** (ADR-001
   again. A dial that times out (Home Assistant down or firewalled) is now reported as
   unreachable, with the `-refresh=false` hint, and commands waiting for a shared dial give up
   when their own context ends (#38).
+- **Breaking** `homeassistant_automation`, `homeassistant_script`, `homeassistant_scene`: create
+  fails if an item with the `id` already exists, e.g. one made in the UI, instead of silently
+  replacing it. Import it with `tofu import`, or choose another `id` (ADR-0024, #41).
+- `homeassistant_automation`, `homeassistant_script`, `homeassistant_scene`: new
+  `timeouts = { create }` (default 60s) for the wait until Home Assistant has reloaded the new
+  item. The wait polls with backoff (#41).
+- `homeassistant_automation`, `homeassistant_script`, `homeassistant_scene`: a refresh no longer
+  downloads every state of the instance per resource. Scripts need no lookup, automations and
+  scenes read only their own entity's state (#41).
+- Home Assistant's validation error for a rejected `config` of an automation, script, scene, or
+  dashboard is shown on the `config` attribute (#41).
 
 ## 0.1.0
 
