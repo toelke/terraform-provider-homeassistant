@@ -3,6 +3,7 @@ package resources
 import (
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -45,7 +46,7 @@ func NewInputNumber() resource.Resource {
 				Optional:    true,
 				Computed:    true,
 				Default:     stringdefault.StaticString("slider"),
-				Validators:  []validator.String{oneOfValidator{"slider", "box"}},
+				Validators:  []validator.String{stringvalidator.OneOf("slider", "box")},
 			},
 			"unit_of_measurement": schema.StringAttribute{
 				Description: "Unit of the value, e.g. `°C`.",

@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/toelke/terraform-provider-homeassistant/internal/client"
@@ -277,31 +276,4 @@ func replaceUnlessImported(key string) planmodifier.String {
 		resp.Diagnostics.Append(req.State.GetAttribute(ctx, path.Root(key), &prior)...)
 		resp.RequiresReplace = !prior.IsNull()
 	}, desc, desc)
-}
-
-// int64Between accepts integers of at least min, and at most max if max > min.
-type int64Between struct{ min, max int64 }
-
-var _ validator.Int64 = int64Between{}
-
-func (v int64Between) Description(context.Context) string {
-	if v.max > v.min {
-		return fmt.Sprintf("must be between %d and %d", v.min, v.max)
-	}
-	return fmt.Sprintf("must be at least %d", v.min)
-}
-
-func (v int64Between) MarkdownDescription(ctx context.Context) string {
-	return v.Description(ctx)
-}
-
-func (v int64Between) ValidateInt64(ctx context.Context, req validator.Int64Request, resp *validator.Int64Response) {
-	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
-		return
-	}
-	n := req.ConfigValue.ValueInt64()
-	if n < v.min || (v.max > v.min && n > v.max) {
-		resp.Diagnostics.AddAttributeError(req.Path, "Invalid Attribute Value",
-			fmt.Sprintf("Attribute %s %s, got: %d", req.Path, v.Description(ctx), n))
-	}
 }

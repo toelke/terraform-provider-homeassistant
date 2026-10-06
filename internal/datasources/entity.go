@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -55,7 +56,7 @@ func (d *entityDataSource) Schema(_ context.Context, _ datasource.SchemaRequest,
 			"entity_id": schema.StringAttribute{
 				Description: "Entity ID, e.g. `sun.sun`.",
 				Required:    true,
-				Validators:  []validator.String{entityIDValidator{}},
+				Validators:  []validator.String{entityIDValidator},
 			},
 			"state": schema.StringAttribute{
 				Description: "Current state, e.g. `on` or `21.5`.",
@@ -163,28 +164,8 @@ func stringAttribute(attrs map[string]any, key string) types.String {
 	return types.StringNull()
 }
 
-// entityIDPattern is the shape of an entity ID, `<domain>.<object_id>`. It also keeps the ID from
-// reaching other paths of the REST API.
-var entityIDPattern = regexp.MustCompile(`^[a-z0-9_]+\.[a-z0-9_]+$`)
-
-type entityIDValidator struct{}
-
-func (entityIDValidator) Description(context.Context) string {
-	return "must be an entity ID, `<domain>.<object_id>`"
-}
-
-func (v entityIDValidator) MarkdownDescription(ctx context.Context) string {
-	return v.Description(ctx)
-}
-
-func (entityIDValidator) ValidateString(_ context.Context, req validator.StringRequest, resp *validator.StringResponse) {
-	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
-		return
-	}
-	if !entityIDPattern.MatchString(req.ConfigValue.ValueString()) {
-		resp.Diagnostics.AddAttributeError(req.Path, "Invalid entity ID",
-			fmt.Sprintf("%q is not an entity ID. Entity IDs look like \"light.bedroom_ceiling\": a domain, "+
-				"a dot, and an object ID, both made of lowercase letters, digits, and underscores.",
-				req.ConfigValue.ValueString()))
-	}
-}
+// entityIDValidator checks the shape of an entity ID, `<domain>.<object_id>`. It also keeps the
+// ID from reaching other paths of the REST API.
+var entityIDValidator = stringvalidator.RegexMatches(regexp.MustCompile(`^[a-z0-9_]+\.[a-z0-9_]+$`),
+	`must be an entity ID like "light.bedroom_ceiling": a domain, a dot, and an object ID, both `+
+		`made of lowercase letters, digits, and underscores`)

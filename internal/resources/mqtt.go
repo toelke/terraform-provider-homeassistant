@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -68,7 +70,7 @@ func NewMQTT() resource.Resource {
 				Optional:    true,
 				Computed:    true,
 				Default:     int64default.StaticInt64(mqttDefaultPort),
-				Validators:  []validator.Int64{int64Between{1, 65535}},
+				Validators:  []validator.Int64{int64validator.Between(1, 65535)},
 			},
 			"username": schema.StringAttribute{
 				Description: "User name to log in to the broker.",
@@ -90,21 +92,21 @@ func NewMQTT() resource.Resource {
 				Optional:    true,
 				Computed:    true,
 				Default:     int64default.StaticInt64(mqttDefaultKeepalive),
-				Validators:  []validator.Int64{int64Between{min: 15}},
+				Validators:  []validator.Int64{int64validator.AtLeast(15)},
 			},
 			"protocol": schema.StringAttribute{
 				Description: "MQTT protocol version: `3.1`, `3.1.1` or `5`. Defaults to `3.1.1`.",
 				Optional:    true,
 				Computed:    true,
 				Default:     stringdefault.StaticString(mqttDefaultProtocol),
-				Validators:  []validator.String{oneOfValidator{"3.1", "3.1.1", "5"}},
+				Validators:  []validator.String{stringvalidator.OneOf("3.1", "3.1.1", "5")},
 			},
 			"transport": schema.StringAttribute{
 				Description: "Transport: `tcp` or `websockets`. Defaults to `tcp`.",
 				Optional:    true,
 				Computed:    true,
 				Default:     stringdefault.StaticString(mqttDefaultTransport),
-				Validators:  []validator.String{oneOfValidator{mqttDefaultTransport, mqttTransportWS}},
+				Validators:  []validator.String{stringvalidator.OneOf(mqttDefaultTransport, mqttTransportWS)},
 			},
 			"ws_path": schema.StringAttribute{
 				Description: "WebSocket path, only with `transport = \"websockets\"`. Unset, Home Assistant uses `/`.",
@@ -215,7 +217,7 @@ func mqttMessageAttribute(desc, payload string) schema.SingleNestedAttribute {
 				Optional:    true,
 				Computed:    true,
 				Default:     int64default.StaticInt64(mqttDefaultMessageQoS),
-				Validators:  []validator.Int64{int64Between{0, 2}},
+				Validators:  []validator.Int64{int64validator.Between(0, 2)},
 			},
 			"retain": schema.BoolAttribute{
 				Description: "Whether the broker retains the message. Defaults to `false`.",

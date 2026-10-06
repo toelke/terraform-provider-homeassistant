@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
@@ -12,30 +13,9 @@ import (
 
 // Validators shared by the resources on REST config editors: automation, script, and scene.
 
-var configItemIDPattern = regexp.MustCompile(`^[a-z0-9_]+$`)
-
 // configItemIDValidator checks a user-chosen ID (ADR-0008) at plan time.
-type configItemIDValidator struct{}
-
-var _ validator.String = configItemIDValidator{}
-
-func (configItemIDValidator) Description(context.Context) string {
-	return "must consist of lowercase letters, digits, and underscores"
-}
-
-func (v configItemIDValidator) MarkdownDescription(ctx context.Context) string {
-	return v.Description(ctx)
-}
-
-func (v configItemIDValidator) ValidateString(ctx context.Context, req validator.StringRequest, resp *validator.StringResponse) {
-	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
-		return
-	}
-	if s := req.ConfigValue.ValueString(); !configItemIDPattern.MatchString(s) {
-		resp.Diagnostics.AddAttributeError(req.Path, "Invalid Attribute Value",
-			fmt.Sprintf("Attribute %s %s, got: %q", req.Path, v.Description(ctx), s))
-	}
-}
+var configItemIDValidator = stringvalidator.RegexMatches(regexp.MustCompile(`^[a-z0-9_]+$`),
+	"must consist of lowercase letters, digits, and underscores")
 
 // configItemConfigValidator checks at plan time that a `config` is an object without an `id`
 // key: the provider owns the ID and sends it from the `id` attribute.

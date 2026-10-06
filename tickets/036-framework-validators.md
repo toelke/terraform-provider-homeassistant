@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 depends_on: [035]
 issues: [43]
 adrs: [0002]
@@ -20,7 +20,7 @@ From issue #43, finding 13. Six hand-rolled validators repeat the same boilerpla
 - Keep `slugValidator`, which depends on `client.Slugify`.
 
 ## Acceptance criteria
-- [ ] The existing validator unit tests pass, adapted where only the error text changed.
-- [ ] Every error still names what a valid value looks like, e.g. "must contain a hyphen".
-- [ ] `docs/` regenerated; a changed validator description shows up there.
-- [ ] `CHANGELOG.md` entry if an error message users see changes.
+- [x] The existing validator unit tests pass, adapted where only the error text changed.
+- [x] Every error still names what a valid value looks like, e.g. "must contain a hyphen".
+- [x] `docs/` regenerated; a changed validator description shows up there.
+- [x] `CHANGELOG.md` entry if an error message users see changes.

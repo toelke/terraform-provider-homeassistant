@@ -51,6 +51,10 @@ breaking changes may land in minor versions and are marked **Breaking** (ADR-001
   scenes read only their own entity's state (#41).
 - Home Assistant's validation error for a rejected `config` of an automation, script, scene, or
   dashboard is shown on the `config` attribute (#41).
+- Plan-time checks of `url_path`, `entity_id`, config-item `id`, and the fixed-choice and
+  numeric-range attributes now use the standard validators of the plugin framework. Their errors
+  read "Attribute <name> must …, got: <value>"; the `url_path` and `entity_id` errors still give
+  an example of a valid value (#43).
 
 ## 0.1.0
 

@@ -26,7 +26,7 @@ func TestConfigItemIDValidator(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			var resp validator.StringResponse
-			configItemIDValidator{}.ValidateString(t.Context(), validator.StringRequest{ConfigValue: tc.value}, &resp)
+			configItemIDValidator.ValidateString(t.Context(), validator.StringRequest{ConfigValue: tc.value}, &resp)
 			if got := resp.Diagnostics.HasError(); got != tc.wantErr {
 				t.Errorf("error = %v, want %v: %v", got, tc.wantErr, resp.Diagnostics)
 			}
