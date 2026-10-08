@@ -94,8 +94,8 @@ config flows show different forms depending on the device, on HA's own state, an
 release, so the typed resources do not name steps. They answer every form from one pool of
 field values (see *Answering forms from fields*). Hue and Z-Wave JS are not planned.
 
-The schemas below come from each integration's `config_flow.py` in HA 2026.4 (the oldest release
-of the support window) and were checked against 2026.9.
+The schemas below come from each integration's `config_flow.py` in HA 2026.4 and were checked
+against 2026.5 (the oldest release of the support window), 2026.9 and 2026.10.
 
 Common to both:
 
@@ -241,7 +241,7 @@ second aborts with `single_instance_allowed`.
 
 The `broker` form differs across the window:
 
-- **2026.4:** the first form has `broker`, `port`, `username`, `password` and the checkbox
+- **Before 2026.9:** the first form has `broker`, `port`, `username`, `password` and the checkbox
   `advanced_options`. The other fields appear only after a post with `advanced_options = true`,
   and the certificate fields, `ws_path` and `ws_headers` appear only after a post that selects
   them. The resource sets `advanced_options = true` when it has a value the form does not show

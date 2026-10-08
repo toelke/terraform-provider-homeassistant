@@ -6,6 +6,9 @@ Breaking changes are marked **Breaking** (ADR-0018, ADR-0019).
 
 ## Unreleased
 
+- Supports Home Assistant 2026.5 to 2026.10, the six most recent releases (ADR-0003). CI tests
+  2026.5.4 and 2026.10.0.
+
 ## 1.0.0
 
 The first stable release. From here on, breaking changes to resources, attributes or state

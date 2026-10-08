@@ -248,7 +248,7 @@ func TestMQTTOptionInput(t *testing.T) {
 	}
 }
 
-// The broker forms of HA 2026.4: the advanced fields and then the file fields appear only after
+// The broker forms of HA before 2026.9: the advanced fields and then the file fields appear only after
 // a post that asks for them.
 const (
 	mqttFormBasic = `[{"name":"broker","required":true,"default":null},{"name":"port","required":true,"default":1883},
