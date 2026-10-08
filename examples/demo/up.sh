@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Start a fresh Home Assistant in Docker, onboard it, and print the provider's environment.
 #
-#   eval "$(./up.sh)"        # HA_VERSION=2026.4.4 ./up.sh for another version
+#   eval "$(./up.sh)"        # HA_VERSION=2026.5.4 ./up.sh for another version
 #
 # ./down.sh removes the container again.
 set -euo pipefail
 cd "$(dirname "$0")"
 
 name=ha-demo
-version=${HA_VERSION:-2026.9.4}
+version=${HA_VERSION:-2026.10.0}
 port=${HA_PORT:-8123}
 
 docker create --name "$name" -p "$port:8123" \
