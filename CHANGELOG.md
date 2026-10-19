@@ -18,6 +18,14 @@ Breaking changes are marked **Breaking** (ADR-0018, ADR-0019).
   committed secrets) on every PR, on `main` and weekly. Reachable vulnerabilities, `gosec` findings
   of medium severity or above, and fixable CRITICAL/HIGH Trivy findings fail the run; everything
   else goes to code scanning alerts.
+- New resource `homeassistant_integration_subentry`: creates a config subentry, e.g. a
+  `forecast_solar` plane or a conversation agent of an AI integration, by answering its subentry
+  flow with `steps`, like `homeassistant_integration`. Changed steps run the subentry's
+  reconfigure flow where its type has one, which keeps the subentry and its devices and entities;
+  other types are replaced. Import by `<entry_id>/<subentry_id>` (#67). `steps` is optional, so
+  `tofu plan -generate-config-out` after an import writes a configuration that plans without
+  errors (`steps = null`); only creating or replacing a subentry needs `steps` or
+  `sensitive_steps`.
 
 ## 1.0.0
 
