@@ -18,6 +18,9 @@ Breaking changes are marked **Breaking** (ADR-0018, ADR-0019).
   committed secrets) on every PR, on `main` and weekly. Reachable vulnerabilities, `gosec` findings
   of medium severity or above, and fixable CRITICAL/HIGH Trivy findings fail the run; everything
   else goes to code scanning alerts.
+- Fixed: reading the device registry no longer fails when Home Assistant stores `sw_version`,
+  `hw_version` or an `identifiers` component as a number, as some integrations do (a Broadlink
+  firmware version, a numeric identifier component); those values are exposed as strings (#79).
 
 ## 1.0.0
 
