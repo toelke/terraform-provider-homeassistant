@@ -52,6 +52,14 @@ Breaking changes are marked **Breaking** (ADR-0018, ADR-0019).
   in the UI or by `homeassistant_integration`. Only the fields in `steps` are managed. Home
   Assistant shows only the flow's first form without saving, so import reads the options of the
   first form, and only changes to its fields made outside Tofu show up as drift (#64).
+- `homeassistant_devices` and `homeassistant_device` expose `identifiers` and `connections`, and
+  `homeassistant_device` can look a device up by `identifier` (e.g.
+  `["mqtt", "zigbee2mqtt_0x00158d0004aaf230"]`), which does not change when the device is renamed
+  (#88).
+- `homeassistant_area` and `homeassistant_device` no longer reject a configuration in which a
+  lookup attribute is unknown at plan time, for example `name` together with an `identifier` that
+  comes from another resource. Read checks that exactly one is set when all values are known
+  (#94 review).
 
 ## 1.0.0
 
