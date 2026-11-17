@@ -288,19 +288,32 @@ func checkEntityIDs(name string, ids ...string) resource.TestCheckFunc {
 	return resource.ComposeAggregateTestCheckFunc(checks...)
 }
 
-// setUpTwinDevices starts an MQTT broker, sets up the MQTT integration, and announces two devices
-// through MQTT discovery. Both are named "Acc Twin" and have one sensor named "Temperature", so
-// the sensors share the friendly name "Acc Twin Temperature". It returns the device IDs and the
-// IDs of their sensors.
+// setUpTwinDevices announces two devices through MQTT discovery (setUpMQTTSensors). Both are named
+// "Acc Twin" and have one sensor named "Temperature", so the sensors share the friendly name
+// "Acc Twin Temperature". It returns the device IDs and the IDs of their sensors.
 func setUpTwinDevices(t *testing.T) (deviceIDs, entityIDs [2]string) {
 	t.Helper()
-	ha := acctest.SharedInstance(t)
+	devices, entities := setUpMQTTSensors(t,
+		mqttSensor{id: "acc_twin_one", device: "Acc Twin"},
+		mqttSensor{id: "acc_twin_two", device: "Acc Twin"},
+	)
+	return [2]string(devices), [2]string(entities)
+}
+
+// mqttSensor is a temperature sensor named "Temperature" that MQTT discovery announces on a
+// device of its own. id is the device identifier and the prefix of the sensor's unique ID
+// (id + "_temperature"); device is the device name, and category the entity category, if any.
+type mqttSensor struct {
+	id, device, category string
+}
+
+// setUpMQTTSensors starts an MQTT broker, sets up the MQTT integration, and announces sensors
+// through MQTT discovery. It returns the IDs of their devices and the IDs of the sensors, in
+// order.
+func setUpMQTTSensors(t *testing.T, sensors ...mqttSensor) (deviceIDs, entityIDs []string) {
+	t.Helper()
+	c := entitiesClient(t)
 	acctest.StartMosquitto(t)
-	u, err := url.Parse(ha.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	c := client.New(client.Config{URL: u, Token: ha.Token, Timeout: 30 * time.Second})
 	ctx := context.Background()
 	must := func(err error) {
 		t.Helper()
@@ -317,13 +330,19 @@ func setUpTwinDevices(t *testing.T) (deviceIDs, entityIDs [2]string) {
 
 	devices := client.Devices(c.WS)
 	registry := client.Entities(c.WS)
-	for i, id := range []string{"acc_twin_one", "acc_twin_two"} {
-		topic := "homeassistant/sensor/" + id + "/config"
-		config, err := json.Marshal(map[string]any{
-			"name": "Temperature", "unique_id": id + "_temperature", "state_topic": id + "/temperature",
+	deviceIDs = make([]string, len(sensors))
+	entityIDs = make([]string, len(sensors))
+	for i, sensor := range sensors {
+		topic := "homeassistant/sensor/" + sensor.id + "/config"
+		discovery := map[string]any{
+			"name": "Temperature", "unique_id": sensor.id + "_temperature", "state_topic": sensor.id + "/temperature",
 			"device_class": "temperature", "unit_of_measurement": "°C",
-			"device": map[string]any{"identifiers": []string{id}, "name": "Acc Twin"},
-		})
+			"device": map[string]any{"identifiers": []string{sensor.id}, "name": sensor.device},
+		}
+		if sensor.category != "" {
+			discovery["entity_category"] = sensor.category
+		}
+		config, err := json.Marshal(discovery)
 		must(err)
 		t.Cleanup(func() {
 			_ = c.REST.Do(context.Background(), http.MethodPost, "services/mqtt/publish",
@@ -332,7 +351,7 @@ func setUpTwinDevices(t *testing.T) (deviceIDs, entityIDs [2]string) {
 
 		// The broker connection comes up shortly after the entry is set up, so the discovery
 		// message is published until the device and its sensor appear.
-		acctest.Eventually(t, 30*time.Second, "MQTT device "+id+" and its sensor", func() (bool, error) {
+		acctest.Eventually(t, 30*time.Second, "MQTT device "+sensor.id+" and its sensor", func() (bool, error) {
 			_ = c.REST.Do(ctx, http.MethodPost, "services/mqtt/publish",
 				map[string]any{"topic": topic, "payload": string(config), "retain": true}, nil)
 			list, err := devices.List(ctx)
@@ -341,7 +360,7 @@ func setUpTwinDevices(t *testing.T) (deviceIDs, entityIDs [2]string) {
 			}
 			for _, d := range list {
 				if slices.ContainsFunc(d.Identifiers, func(ident []client.RegistryString) bool {
-					return slices.Equal(ident, []client.RegistryString{"mqtt", client.RegistryString(id)})
+					return slices.Equal(ident, []client.RegistryString{"mqtt", client.RegistryString(sensor.id)})
 				}) {
 					deviceIDs[i] = d.ID
 				}

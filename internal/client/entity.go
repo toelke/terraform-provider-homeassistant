@@ -21,6 +21,12 @@ type EntityEntry struct {
 	Platform     string   `json:"platform"`
 	DeviceID     *string  `json:"device_id"`
 	OriginalName *string  `json:"original_name"`
+	// UniqueID is a RegistryString: HA keeps the number of an integration that reported one, and
+	// a plain string would fail the decoding of the whole registry list. It is a pointer so that a
+	// null, which no current HA writes but older registries may hold, only affects its own entry.
+	UniqueID *RegistryString `json:"unique_id"`
+	// EntityCategory is `config` or `diagnostic`, or nil for a primary entity.
+	EntityCategory *string `json:"entity_category"`
 }
 
 // EntityRegistry is the entity registry (`config/entity_registry/*`). Integrations create and
