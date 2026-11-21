@@ -34,7 +34,7 @@ jobs:
             tofu: "1.8.x"
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@v7.1.0
         with:
           go-version-file: go.mod
       - uses: opentofu/setup-opentofu@v2
