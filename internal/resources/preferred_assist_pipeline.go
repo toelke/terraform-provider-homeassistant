@@ -2,6 +2,7 @@ package resources
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -123,5 +124,10 @@ func (r *preferredAssistPipelineResource) Delete(context.Context, resource.Delet
 }
 
 func (r *preferredAssistPipelineResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	if req.ID != preferredAssistPipelineID {
+		resp.Diagnostics.AddError("Invalid import ID",
+			fmt.Sprintf("The preferred Assist pipeline is imported with the ID %q, got %q.", preferredAssistPipelineID, req.ID))
+		return
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
 }
