@@ -6,6 +6,10 @@ Breaking changes are marked **Breaking** (ADR-0018, ADR-0019).
 
 ## Unreleased
 
+- New resources `homeassistant_assist_pipeline` and `homeassistant_preferred_assist_pipeline`: Assist
+  pipelines (conversation agent, speech-to-text, text-to-speech, wake word) and which one is
+  preferred (#119).
+
 ## 1.1.0
 
 Supports Home Assistant 2026.6 to 2026.11. No breaking changes: state from 1.0.0 upgrades without

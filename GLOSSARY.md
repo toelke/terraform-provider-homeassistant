@@ -107,6 +107,10 @@ commands address it by leaving the field out), no metadata the provider manages,
 **View** — A tab of a dashboard. **Section** — A grid of cards within a `sections`-type view.
 **Card** — A single UI widget.
 
+**Assist pipeline** — What a voice assistant runs a request through: speech-to-text, a
+conversation agent, and text-to-speech, plus a wake word engine for wake words detected in HA.
+One pipeline is the *preferred* one, which voice assistants set to "preferred" use.
+
 ## Provider terms
 
 **Transport** — How the provider talks to HA: **REST** (`/api/*`, stateless HTTP) or
