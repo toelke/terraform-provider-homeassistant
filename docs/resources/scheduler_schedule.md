@@ -64,6 +64,7 @@ resource "homeassistant_scheduler_schedule" "porch_light" {
 - `repeat_type` (String) What happens after the last timeslot of a day: `repeat` (run again next time) or `pause` (turn the switch off; it must be turned on again). Defaults to `repeat`. The integration's `single`, which deletes the schedule after it ran, is not supported: the next apply would create it again.
 - `start_date` (String) First day on which the schedule runs, as `YYYY-MM-DD`. Unset, it starts right away.
 - `tags` (Set of String) Tags of the schedule, which the card filters by. Defaults to none.
+- `timeouts` (Attributes) (see [below for nested schema](#nestedatt--timeouts))
 - `weekdays` (List of String) Days on which the schedule runs: any of `mon`, `tue`, `wed`, `thu`, `fri`, `sat`, `sun`, or `daily`, `workday`, `weekend`. `workday` follows `binary_sensor.workday_sensor`. Defaults to `["daily"]`.
 
 ### Read-Only
@@ -111,6 +112,16 @@ Required:
 Optional:
 
 - `attribute` (String) Attribute to compare instead of the state.
+
+
+
+<a id="nestedatt--timeouts"></a>
+### Nested Schema for `timeouts`
+
+Optional:
+
+- `create` (String) A string that can be [parsed as a duration](https://pkg.go.dev/time#ParseDuration) consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours).
+- `update` (String) A string that can be [parsed as a duration](https://pkg.go.dev/time#ParseDuration) consisting of numbers and unit suffixes, such as "30s" or "2h45m". Valid time units are "s" (seconds), "m" (minutes), "h" (hours).
 
 ## Import
 

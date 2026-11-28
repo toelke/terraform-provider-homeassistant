@@ -25,6 +25,8 @@ var (
 	schedulerFixedTime = regexp.MustCompile(`^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$`)
 	// schedulerSunTime is a time relative to sunrise or sunset.
 	schedulerSunTime = regexp.MustCompile(`^(sunrise|sunset)[+-]([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$`)
+	// jsonNumber is a number as JSON writes it, which the integration takes as a number.
+	jsonNumber = regexp.MustCompile(`^-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?$`)
 	// dottedID is an entity ID or an action, `<domain>.<name>`.
 	dottedID = regexp.MustCompile(`^[a-z0-9_]+\.[a-z0-9_]+$`)
 	// noOuterSpace is a string that does not start or end with whitespace. Scheduler strips the
@@ -172,10 +174,10 @@ func validateConditions(p path.Path, obj types.Object, resp *resource.ValidateCo
 		if !isSet(mt) || !isSet(val) || (mt.ValueString() != "below" && mt.ValueString() != "above") {
 			continue
 		}
-		if _, err := strconv.ParseFloat(val.ValueString(), 64); err != nil {
+		if !jsonNumber.MatchString(val.ValueString()) {
 			resp.Diagnostics.AddAttributeError(p.AtName("conditions").AtListIndex(i).AtName("value"),
 				"Invalid Attribute Value",
-				fmt.Sprintf("value must be a number with match_type %q, got %q.", mt.ValueString(), val.ValueString()))
+				fmt.Sprintf("value must be a number like 20 or -0.5 with match_type %q, got %q.", mt.ValueString(), val.ValueString()))
 		}
 	}
 }

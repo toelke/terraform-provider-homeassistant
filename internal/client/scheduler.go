@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 )
 
 // ErrSchedulerMissing means Home Assistant has no Scheduler integration: it is not installed, or
@@ -109,6 +110,10 @@ func (s Schedulers) Get(ctx context.Context, id string) (SchedulerSchedule, bool
 // Add creates a schedule from fields, as `scheduler.add` takes them, and returns its ID. The
 // service returns nothing, so Add compares the IDs before and after the call. A schedule that
 // someone else creates at the same moment makes that ambiguous, which is an error.
+//
+// Once the service has succeeded, the schedule exists: Add retries the list a few times, and if it
+// still cannot tell the ID, the error says how to find and import the schedule. It never deletes
+// a schedule it cannot identify.
 func (s Schedulers) Add(ctx context.Context, fields map[string]any) (string, error) {
 	schedulerAdds.Lock()
 	defer schedulerAdds.Unlock()
@@ -120,9 +125,20 @@ func (s Schedulers) Add(ctx context.Context, fields map[string]any) (string, err
 	if err := s.call(ctx, "add", fields); err != nil {
 		return "", err
 	}
-	after, err := s.ids(ctx)
+	var after map[string]bool
+	for attempt := range schedulerListAttempts {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+			case <-time.After(schedulerListRetryDelay):
+			}
+		}
+		if after, err = s.ids(ctx); err == nil || ctx.Err() != nil {
+			break
+		}
+	}
 	if err != nil {
-		return "", err
+		return "", addedUnidentified(fields, fmt.Errorf("listing the schedules failed: %w", err))
 	}
 	var added []string
 	for id := range after {
@@ -134,12 +150,27 @@ func (s Schedulers) Add(ctx context.Context, fields map[string]any) (string, err
 	case 1:
 		return added[0], nil
 	case 0:
-		return "", errors.New("scheduler.add succeeded, but no new schedule appeared")
+		return "", addedUnidentified(fields, errors.New("no new schedule appeared in the list"))
 	default:
 		slices.Sort(added)
-		return "", fmt.Errorf("scheduler.add succeeded, but several schedules appeared at once (%v), "+
-			"so the provider cannot tell which one it created", added)
+		return "", addedUnidentified(fields, fmt.Errorf("several schedules appeared at once (%s)",
+			strings.Join(added, ", ")))
 	}
+}
+
+// Retries of the list after `scheduler.add`. Tests shorten the delay.
+var (
+	schedulerListAttempts   = 3
+	schedulerListRetryDelay = time.Second
+)
+
+// addedUnidentified is the error of an add that succeeded without the provider learning the new
+// schedule's ID.
+func addedUnidentified(fields map[string]any, cause error) error {
+	return fmt.Errorf("scheduler.add created the schedule %q, but the provider could not tell its "+
+		"schedule_id: %w. Look it up, e.g. with the data source homeassistant_scheduler_schedules, and "+
+		"import it with `tofu import <resource address> <schedule_id>`, or delete it in Home Assistant, "+
+		"before applying again; otherwise the next apply creates it a second time", fields["name"], cause)
 }
 
 // Edit sets the fields of the schedule whose switch is entityID, as `scheduler.edit` takes them.

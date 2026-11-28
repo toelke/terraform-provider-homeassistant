@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/testcontainers/testcontainers-go"
 )
@@ -109,7 +110,13 @@ func (c CustomComponent) files(ctx context.Context) ([]testcontainers.ContainerF
 	return files, nil
 }
 
+// downloadTimeout bounds a download, including reading the body: Home Assistant's startup timeout
+// does not cover it, since the container is not started yet.
+const downloadTimeout = 2 * time.Minute
+
 func download(ctx context.Context, url string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, downloadTimeout)
+	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err

@@ -37,14 +37,24 @@ func preCheck(t *testing.T) {
 	}
 }
 
+var (
+	clientOnce sync.Once
+	shared     *client.HAClient
+)
+
+// haClient returns one client for the shared instance, so polling does not open a WebSocket per
+// call.
 func haClient(t *testing.T) *client.HAClient {
 	t.Helper()
 	ha := acctest.SharedInstance(t)
-	u, err := url.Parse(ha.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return client.New(client.Config{URL: u, Token: ha.Token, Timeout: 30 * time.Second})
+	clientOnce.Do(func() {
+		u, err := url.Parse(ha.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		shared = client.New(client.Config{URL: u, Token: ha.Token, Timeout: 30 * time.Second})
+	})
+	return shared
 }
 
 func schedulers(t *testing.T) client.Schedulers {

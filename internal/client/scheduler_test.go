@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 )
 
 // fakeSchedulerWS serves `scheduler` and `scheduler.add` from memory. Add creates the IDs in
@@ -42,7 +43,8 @@ func TestSchedulersAdd(t *testing.T) {
 	}
 
 	ws, _ = fakeSchedulerWS(nil, []string{"bbbbbb"}, []string{"cccccc"})
-	if _, err := NewSchedulers(ws).Add(t.Context(), nil); err == nil || !strings.Contains(err.Error(), "several schedules") {
+	if _, err := NewSchedulers(ws).Add(t.Context(), nil); err == nil || !strings.Contains(err.Error(), "several schedules") ||
+		!strings.Contains(err.Error(), "tofu import") {
 		t.Errorf("concurrent add: %v", err)
 	}
 	ws, _ = fakeSchedulerWS(nil, nil, nil)
@@ -102,5 +104,37 @@ func TestSchedulerMissing(t *testing.T) {
 	}})
 	if err := s.Edit(t.Context(), "switch.nope", nil); errors.Is(err, ErrSchedulerMissing) || err == nil {
 		t.Errorf("Edit: %v", err)
+	}
+}
+
+func TestSchedulersAddRetriesList(t *testing.T) {
+	schedulerListRetryDelay = time.Millisecond
+	t.Cleanup(func() { schedulerListRetryDelay = time.Second })
+
+	// The list fails once after the add, then works: the ID is still found.
+	ws, _ := fakeSchedulerWS(nil, []string{"bbbbbb"}, nil)
+	list, lists := ws["scheduler"], 0
+	ws["scheduler"] = func(p map[string]any) (any, error) {
+		if lists++; lists == 2 {
+			return nil, ErrConnectionLost
+		}
+		return list(p)
+	}
+	if id, err := NewSchedulers(ws).Add(t.Context(), map[string]any{"name": "x"}); err != nil || id != "bbbbbb" {
+		t.Errorf("Add = %q, %v", id, err)
+	}
+
+	// The list keeps failing: the error says the schedule exists and how to import it.
+	lists = 0
+	ws["scheduler"] = func(p map[string]any) (any, error) {
+		if lists++; lists > 1 {
+			return nil, ErrConnectionLost
+		}
+		return list(p)
+	}
+	_, err := NewSchedulers(ws).Add(t.Context(), map[string]any{"name": "Office"})
+	if !errors.Is(err, ErrConnectionLost) || !strings.Contains(err.Error(), `created the schedule "Office"`) ||
+		!strings.Contains(err.Error(), "tofu import") {
+		t.Errorf("Add: %v", err)
 	}
 }

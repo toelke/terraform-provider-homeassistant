@@ -29,9 +29,13 @@ A schedule as `scheduler/item` returns it (3.3.9):
 ```
 
 - `scheduler.add` returns no ID. The provider lists the IDs before and after the call; exactly one
-  new ID must appear. Adds from one provider process are serialised for that.
+  new ID must appear. Adds from one provider process are serialised for that. A failed list after
+  a successful add is retried (3 attempts). If the ID still cannot be told, the error says that
+  the schedule was created and how to find and import it; the provider never deletes a schedule
+  it cannot identify.
 - Edits refresh the switch, which serves the reads, in a task of its own. After each write, the
-  provider reads until the schedule holds what it wrote (up to 15 s), then stores that in state.
+  provider reads until the schedule holds what it wrote, up to `timeouts.create` or
+  `timeouts.update` (default 60 s), then stores that in state.
 - Renaming through `scheduler.edit` removes the switch and does not add it again (3.3.9), so a new
   `name` replaces the schedule.
 - The services reject `null` for `stop`, `condition_type`, an action's `entity_id`, and an empty
@@ -64,6 +68,7 @@ resource "homeassistant_scheduler_schedule" "office_heating" {
 | `repeat_type` | optional, default `repeat` | `repeat` or `pause`; `single` rejected (ADR-0031) |
 | `tags` | optional set, default empty | |
 | `enabled` | optional | Unset: not managed. Set: enforced through the switch (ADR-0031) |
+| `timeouts` | optional | `create`, `update`: how long to wait for the write to read back (60 s) |
 | `timeslots` | required list, ≥ 1 | see below |
 
 A timeslot has `start` (required), `stop`, `actions` (required, ≥ 1), `conditions` (default
@@ -71,7 +76,9 @@ empty), `condition_type` (`and`/`or`, unset means `or` to the integration) and
 `track_conditions` (default `false`). An action has `action` (`<domain>.<name>`), `entity_id`, and
 `data` (a JSON object as text, default `{}`, compared semantically). A condition has
 `entity_id`, `attribute`, `match_type` (`is`, `not`, `below`, `above`) and `value`, a string that
-must be a number with `below` and `above` and is then sent as a number.
+must be a number in JSON syntax (`20`, `-0.5`, not `.5` or `NaN`) with `below` and `above` and is
+then sent as a number. The integration stores it as a number, so on read a value that is the same
+number keeps its spelling (`20.50` stays `20.50`).
 
 Plan-time validation:
 

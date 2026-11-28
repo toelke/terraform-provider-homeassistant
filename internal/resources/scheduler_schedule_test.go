@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -143,6 +144,7 @@ func TestValidateSchedulerSchedule(t *testing.T) {
 			ScheduleID: types.StringNull(), EntityID: types.StringNull(), Name: types.StringValue("x"),
 			Weekdays: []string{"daily"}, StartDate: types.StringNull(), EndDate: types.StringNull(),
 			RepeatType: types.StringValue("repeat"), Tags: []string{}, Enabled: types.BoolNull(), Timeslots: slots,
+			Timeouts: timeouts.Value{Object: types.ObjectNull(schedulerTimeoutsType)},
 		}
 	}
 	cond := func(mt, v string) []schedulerConditionModel {
@@ -173,7 +175,10 @@ func TestValidateSchedulerSchedule(t *testing.T) {
 		{"same point", base(slot("06:00:00", ""), slot("06:00:00", "")), "both start at 06:00:00"},
 		{"numeric condition", base(withCond(slot("06:00:00", ""), cond("above", "20.5"))), ""},
 		{"text condition", base(withCond(slot("06:00:00", ""), cond("is", "on"))), ""},
-		{"non-numeric below", base(withCond(slot("06:00:00", ""), cond("below", "warm"))), `value must be a number with match_type "below"`},
+		{"non-numeric below", base(withCond(slot("06:00:00", ""), cond("below", "warm"))), `value must be a number like 20 or -0.5 with match_type "below"`},
+		{"no leading digit", base(withCond(slot("06:00:00", ""), cond("below", ".5"))), `value must be a number`},
+		{"NaN", base(withCond(slot("06:00:00", ""), cond("above", "NaN"))), `value must be a number`},
+		{"negative fraction", base(withCond(slot("06:00:00", ""), cond("above", "-0.5"))), ""},
 		{"dates in order", dates(base(slot("06:00:00", "")), "2026-01-01", "2026-01-01"), ""},
 		{"end before start", dates(base(slot("06:00:00", "")), "2026-02-01", "2026-01-31"), "end_date must not be before start_date"},
 	} {
@@ -325,4 +330,27 @@ func validateString(t *testing.T, v validator.String, s string) diag.Diagnostics
 	var resp validator.StringResponse
 	v.ValidateString(t.Context(), validator.StringRequest{Path: path.Root("x"), ConfigValue: types.StringValue(s)}, &resp)
 	return resp.Diagnostics
+}
+
+func TestKeepNumberSpelling(t *testing.T) {
+	withValue := func(v string) []schedulerTimeslotModel {
+		s := slot("06:00:00", "")
+		s.Conditions = []schedulerConditionModel{{
+			EntityID: types.StringValue("sensor.t"), Attribute: types.StringNull(),
+			MatchType: types.StringValue("above"), Value: types.StringValue(v),
+		}}
+		return []schedulerTimeslotModel{s}
+	}
+	for _, tc := range []struct{ read, prior, want string }{
+		{"20.5", "20.50", "20.50"}, // same number: keep how it was written
+		{"21", "20.50", "21"},      // changed: drift
+		{"on", "on", "on"},
+		{"1000.0", "1e3", "1e3"},
+	} {
+		read := withValue(tc.read)
+		keepNumberSpelling(read, withValue(tc.prior))
+		if got := read[0].Conditions[0].Value.ValueString(); got != tc.want {
+			t.Errorf("read %q, prior %q: got %q, want %q", tc.read, tc.prior, got, tc.want)
+		}
+	}
 }

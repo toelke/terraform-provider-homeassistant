@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -37,9 +38,13 @@ var (
 	_ resource.ResourceWithValidateConfig = (*schedulerScheduleResource)(nil)
 )
 
-// schedulerWriteTimeout bounds the wait for a schedule to read back as written: the integration
-// refreshes its switch, which serves the reads, in a task of its own after each write.
-var schedulerWriteTimeout = 15 * time.Second
+// defaultSchedulerWriteTimeout bounds the wait for a schedule to read back as written, unless
+// `timeouts` says otherwise: the integration refreshes its switch, which serves the reads, in a
+// task of its own after each write.
+const defaultSchedulerWriteTimeout = 60 * time.Second
+
+// schedulerTimeoutsType is the type of `timeouts`.
+var schedulerTimeoutsType = map[string]attr.Type{"create": types.StringType, "update": types.StringType}
 
 // NewSchedulerSchedule returns the `homeassistant_scheduler_schedule` resource.
 func NewSchedulerSchedule() resource.Resource {
@@ -65,6 +70,7 @@ type schedulerScheduleModel struct {
 	RepeatType types.String             `tfsdk:"repeat_type"`
 	Tags       []string                 `tfsdk:"tags"`
 	Enabled    types.Bool               `tfsdk:"enabled"`
+	Timeouts   timeouts.Value           `tfsdk:"timeouts"`
 	Timeslots  []schedulerTimeslotModel `tfsdk:"timeslots"`
 }
 
@@ -94,7 +100,7 @@ func (r *schedulerScheduleResource) Metadata(_ context.Context, req resource.Met
 	resp.TypeName = req.ProviderTypeName + "_scheduler_schedule"
 }
 
-func (r *schedulerScheduleResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
+func (r *schedulerScheduleResource) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	timeHint := "`HH:MM:SS` (24 hours, e.g. `06:30:00`), or relative to the sun as `sunrise` or `sunset`, " +
 		"`+` or `-`, and an offset `HH:MM:SS` (e.g. `sunset-00:30:00`)"
 	resp.Schema = schema.Schema{
@@ -189,6 +195,7 @@ func (r *schedulerScheduleResource) Schema(_ context.Context, _ resource.SchemaR
 					"so `enabled = true` turns it on again on the next apply.",
 				Optional: true,
 			},
+			"timeouts": timeouts.Attributes(ctx, timeouts.Opts{Create: true, Update: true}),
 			"timeslots": schema.ListNestedAttribute{
 				Description: "When the schedule runs and what it does: at a time (`start` only), or in a time " +
 					"range (`start` and `stop`), whose actions run at the start, and again when Home " +
@@ -319,6 +326,11 @@ func (r *schedulerScheduleResource) Create(ctx context.Context, req resource.Cre
 		resp.Diagnostics.AddError("Creating Scheduler schedule", err.Error())
 		return
 	}
+	timeout, diags := plan.Timeouts.Create(ctx, defaultSchedulerWriteTimeout)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	id, err := r.schedulers.Add(ctx, fields)
 	if err != nil {
 		addSchedulerError(&resp.Diagnostics, "Creating Scheduler schedule", err)
@@ -327,7 +339,7 @@ func (r *schedulerScheduleResource) Create(ctx context.Context, req resource.Cre
 	// Store the ID right away, so a failure below leaves the schedule in state, not orphaned.
 	plan.ScheduleID = types.StringValue(id)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("schedule_id"), id)...)
-	r.finishWrite(ctx, plan, fields, &resp.Diagnostics, &resp.State)
+	r.finishWrite(ctx, plan, fields, timeout, &resp.Diagnostics, &resp.State)
 }
 
 func (r *schedulerScheduleResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -341,6 +353,11 @@ func (r *schedulerScheduleResource) Update(ctx context.Context, req resource.Upd
 		resp.Diagnostics.AddError("Updating Scheduler schedule", err.Error())
 		return
 	}
+	timeout, diags := plan.Timeouts.Update(ctx, defaultSchedulerWriteTimeout)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	current, ok := r.get(ctx, plan.ScheduleID.ValueString(), "Updating Scheduler schedule", &resp.Diagnostics)
 	if !ok {
 		return
@@ -349,7 +366,7 @@ func (r *schedulerScheduleResource) Update(ctx context.Context, req resource.Upd
 		addSchedulerError(&resp.Diagnostics, "Updating Scheduler schedule", err)
 		return
 	}
-	r.finishWrite(ctx, plan, fields, &resp.Diagnostics, &resp.State)
+	r.finishWrite(ctx, plan, fields, timeout, &resp.Diagnostics, &resp.State)
 }
 
 // get returns the schedule with the ID id, and adds an error if it is missing.
@@ -366,10 +383,13 @@ func (r *schedulerScheduleResource) get(ctx context.Context, id, summary string,
 }
 
 // finishWrite waits until the schedule reads back as written, sets `enabled` if the plan manages
-// it, and stores the schedule in state.
-func (r *schedulerScheduleResource) finishWrite(ctx context.Context, plan schedulerScheduleModel, fields map[string]any, diags *diag.Diagnostics, state stateSetter) {
+// it, and stores the schedule in state. Each wait lasts at most timeout.
+func (r *schedulerScheduleResource) finishWrite(ctx context.Context, plan schedulerScheduleModel, fields map[string]any, timeout time.Duration, diags *diag.Diagnostics, state stateSetter) {
+	if diags.HasError() {
+		return
+	}
 	id := plan.ScheduleID.ValueString()
-	s, ok := r.awaitSchedule(ctx, id, func(s client.SchedulerSchedule) bool {
+	s, ok := r.awaitSchedule(ctx, id, timeout, func(s client.SchedulerSchedule) bool {
 		return sameFields(fields, newSchedulerScheduleModel(s, types.BoolNull()))
 	}, diags)
 	if !ok {
@@ -381,13 +401,14 @@ func (r *schedulerScheduleResource) finishWrite(ctx context.Context, plan schedu
 			return
 		}
 		want := plan.Enabled.ValueBool()
-		if s, ok = r.awaitSchedule(ctx, id, func(s client.SchedulerSchedule) bool { return s.Enabled == want }, diags); !ok {
+		if s, ok = r.awaitSchedule(ctx, id, timeout, func(s client.SchedulerSchedule) bool { return s.Enabled == want }, diags); !ok {
 			return
 		}
 	}
 	m := newSchedulerScheduleModel(s, plan.Enabled)
 	// The values read back equal the plan's up to JSON spelling; keep the plan's spelling.
 	m.Timeslots = plan.Timeslots
+	m.Timeouts = plan.Timeouts
 	diags.Append(state.Set(ctx, m)...)
 }
 
@@ -397,10 +418,10 @@ type stateSetter interface {
 }
 
 // awaitSchedule reads the schedule until done holds for it, and returns the last read. If done
-// never holds within schedulerWriteTimeout, it adds an error.
-func (r *schedulerScheduleResource) awaitSchedule(ctx context.Context, id string, done func(client.SchedulerSchedule) bool, diags *diag.Diagnostics) (client.SchedulerSchedule, bool) {
+// never holds within timeout, it adds an error.
+func (r *schedulerScheduleResource) awaitSchedule(ctx context.Context, id string, timeout time.Duration, done func(client.SchedulerSchedule) bool, diags *diag.Diagnostics) (client.SchedulerSchedule, bool) {
 	var last client.SchedulerSchedule
-	wctx, cancel := context.WithTimeout(ctx, schedulerWriteTimeout)
+	wctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	err := waitFor(wctx, func(ctx context.Context) (bool, error) {
 		s, ok, err := r.schedulers.Get(ctx, id)
@@ -413,9 +434,9 @@ func (r *schedulerScheduleResource) awaitSchedule(ctx context.Context, id string
 	switch {
 	case errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil:
 		diags.AddError("Scheduler schedule not updated",
-			fmt.Sprintf("Scheduler schedule %s did not read back as written within %s. Run `tofu apply` again; "+
-				"if this persists, the Scheduler integration may store the values differently, please report it.",
-				id, schedulerWriteTimeout))
+			fmt.Sprintf("Scheduler schedule %s did not read back as written within %s. Run `tofu apply` again, "+
+				"or raise `timeouts`; if this persists, the Scheduler integration may store the values "+
+				"differently, please report it.", id, timeout))
 		return last, false
 	case err != nil:
 		addSchedulerError(diags, "Reading Scheduler schedule", err)
@@ -439,7 +460,10 @@ func (r *schedulerScheduleResource) Read(ctx context.Context, req resource.ReadR
 		resp.State.RemoveResource(ctx)
 		return
 	}
-	resp.Diagnostics.Append(resp.State.Set(ctx, newSchedulerScheduleModel(s, state.Enabled))...)
+	m := newSchedulerScheduleModel(s, state.Enabled)
+	m.Timeouts = state.Timeouts
+	keepNumberSpelling(m.Timeslots, state.Timeslots)
+	resp.Diagnostics.Append(resp.State.Set(ctx, m)...)
 }
 
 func (r *schedulerScheduleResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -488,6 +512,7 @@ func newSchedulerScheduleModel(s client.SchedulerSchedule, enabled types.Bool) s
 		RepeatType: types.StringValue(s.RepeatType),
 		Tags:       nonNil(s.Tags),
 		Enabled:    types.BoolNull(),
+		Timeouts:   timeouts.Value{Object: types.ObjectNull(schedulerTimeoutsType)},
 		Timeslots:  make([]schedulerTimeslotModel, 0, len(s.Timeslots)),
 	}
 	if !enabled.IsNull() {
@@ -601,7 +626,7 @@ func (m schedulerScheduleModel) fields() (map[string]any, error) {
 // and `above`, which compare numbers, and the string otherwise.
 func conditionValue(matchType, value string) any {
 	if matchType == "below" || matchType == "above" {
-		if _, err := strconv.ParseFloat(value, 64); err == nil {
+		if jsonNumber.MatchString(value) {
 			return json.Number(value)
 		}
 	}
@@ -628,4 +653,19 @@ func nonNil(s []string) []string {
 		return []string{}
 	}
 	return s
+}
+
+// keepNumberSpelling keeps the prior value of each condition whose number reads back spelled
+// differently, e.g. `20.50` as `20.5`: the integration stores numbers as numbers.
+func keepNumberSpelling(read, prior []schedulerTimeslotModel) {
+	for i := range min(len(read), len(prior)) {
+		for j := range min(len(read[i].Conditions), len(prior[i].Conditions)) {
+			r, p := &read[i].Conditions[j], prior[i].Conditions[j]
+			a, errA := strconv.ParseFloat(r.Value.ValueString(), 64)
+			b, errB := strconv.ParseFloat(p.Value.ValueString(), 64)
+			if errA == nil && errB == nil && a == b && jsonNumber.MatchString(p.Value.ValueString()) {
+				r.Value = p.Value
+			}
+		}
+	}
 }
