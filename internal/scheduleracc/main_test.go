@@ -20,20 +20,38 @@ func TestMain(m *testing.M) {
 	acctest.Main(m)
 }
 
-var (
-	setupOnce sync.Once
-	setupErr  error
-)
-
-// preCheck starts Home Assistant and sets the Scheduler integration up.
+// preCheck starts Home Assistant and makes sure the Scheduler integration is set up. A test may
+// remove its config entry, so this checks before every test.
 func preCheck(t *testing.T) {
 	t.Helper()
 	acctest.PreCheck(t)
-	setupOnce.Do(func() {
-		_, setupErr = client.NewConfigFlows(haClient(t).REST).Run(context.Background(), "scheduler", "", nil)
-	})
-	if setupErr != nil {
-		t.Fatalf("set up the Scheduler integration: %v", setupErr)
+	ctx := context.Background()
+	c := haClient(t)
+	entries, err := client.NewConfigEntries(c.WS, c.REST).List(ctx, "scheduler")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) > 0 {
+		return
+	}
+	if _, err := client.NewConfigFlows(c.REST).Run(ctx, "scheduler", "", nil); err != nil {
+		t.Fatalf("set up the Scheduler integration: %v", err)
+	}
+}
+
+// removeSchedulerEntries deletes the Scheduler integration's config entries, with its schedules.
+func removeSchedulerEntries(t *testing.T) {
+	t.Helper()
+	ctx := context.Background()
+	entries := client.NewConfigEntries(haClient(t).WS, haClient(t).REST)
+	all, err := entries.List(ctx, "scheduler")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range all {
+		if _, err := entries.Delete(ctx, e.EntryID); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 

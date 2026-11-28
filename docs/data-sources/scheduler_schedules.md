@@ -43,4 +43,4 @@ Read-Only:
 - `name` (String) Name; null if it has none.
 - `schedule_id` (String) ID of the schedule, the import ID.
 - `tags` (Set of String) Tags.
-- `weekdays` (List of String) Days on which it runs, e.g. `["mon", "fri"]` or `["daily"]`.
+- `weekdays` (Set of String) Days on which it runs, e.g. `["mon", "fri"]` or `["daily"]`.

@@ -38,11 +38,20 @@ A schedule as `scheduler/item` returns it (3.3.9):
   `timeouts.update` (default 60 s), then stores that in state.
 - Renaming through `scheduler.edit` removes the switch and does not add it again (3.3.9), so a new
   `name` replaces the schedule.
+- Every `scheduler.edit` runs the actions of the timeslot that is active at that moment again, if
+  the schedule is enabled (`async_item_updated` sets `_init`). Update therefore calls it only if
+  the fields differ from the schedule read just before; a change of `enabled` or `timeouts` alone
+  does not edit.
+- If the `scheduler.add` call itself fails without an answer from Home Assistant (timeout, lost
+  connection, cancel), the schedule may exist: the provider lists once more, unaffected by the
+  cancel, and takes the one new ID if there is one, or reports that it may have been created.
 - The services reject `null` for `stop`, `condition_type`, an action's `entity_id`, and an empty
   `conditions`, so the provider leaves unset ones out.
 - Without the integration, the commands fail with `unknown_command`, and the services with
   `not_found` ("Service scheduler.… not found."). Both become one error, "Scheduler integration
-  missing", with how to install it.
+  missing", with how to install it. Planning to create a schedule only warns about it, so a
+  `homeassistant_integration` with `domain = "scheduler"` that the schedule depends on can set it
+  up in the same apply (ADR-0031).
 
 ## `homeassistant_scheduler_schedule`
 
@@ -63,7 +72,7 @@ resource "homeassistant_scheduler_schedule" "office_heating" {
 | `schedule_id` | computed | Import ID. Kept across updates |
 | `entity_id` | computed | `switch.schedule_<slug of name>` |
 | `name` | required | Change replaces. No leading or trailing whitespace |
-| `weekdays` | optional, default `["daily"]` | `mon`…`sun`, `daily`, `workday`, `weekend`; unique |
+| `weekdays` | optional set, default `["daily"]` | `mon`…`sun`, `daily`, `workday`, `weekend`; order means nothing |
 | `start_date`, `end_date` | optional | `YYYY-MM-DD`; `end_date` not before `start_date` |
 | `repeat_type` | optional, default `repeat` | `repeat` or `pause`; `single` rejected (ADR-0031) |
 | `tags` | optional set, default empty | |
@@ -85,10 +94,10 @@ Plan-time validation:
 
 - Times are `HH:MM:SS`, or `sunrise`/`sunset` with `+`/`-` and an offset `HH:MM:SS`.
 - Timeslots with fixed times must not overlap. A `stop` of `00:00:00` is the end of the day, and a
-  `stop` at or before `start` continues past midnight. Two single times must differ. Timeslots
-  relative to the sun are not checked.
-- Creating a schedule checks that the integration is set up (`scheduler`), so the plan fails
-  without it.
+  `stop` at or before `start` continues past midnight. Two single times must differ, and a single
+  time must not lie within a range (`start` included, `stop` excluded). Timeslots relative to the
+  sun are not checked.
+- Planning to create a schedule warns if the integration is not set up (`scheduler`).
 
 Read: `null` from `scheduler/item` removes the resource from state. Changes made in the card are
 drift. `enabled` is read only when set.

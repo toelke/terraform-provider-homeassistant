@@ -67,6 +67,28 @@ func checkSchedule(t *testing.T, name string, check func(client.SchedulerSchedul
 	}
 }
 
+// TestAccSchedulerSchedule_WithIntegration sets the integration up and creates a schedule in one
+// apply: the plan only warns that the integration is missing (ADR-0031).
+func TestAccSchedulerSchedule_WithIntegration(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			acctest.PreCheck(t)
+			removeSchedulerEntries(t)
+		},
+		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
+		Steps: []resource.TestStep{{
+			Config: scheduleConfig("Acc With Integration", `["daily"]`, "21",
+				`  depends_on = [homeassistant_integration.scheduler]`) + `
+resource "homeassistant_integration" "scheduler" {
+  domain = "scheduler"
+  steps  = { user = {} }
+}
+`,
+			Check: resource.TestCheckResourceAttr(scheduleAddr, "entity_id", "switch.schedule_acc_with_integration"),
+		}},
+	})
+}
+
 func TestAccSchedulerSchedule(t *testing.T) {
 	const (
 		name    = "Acc Heating"

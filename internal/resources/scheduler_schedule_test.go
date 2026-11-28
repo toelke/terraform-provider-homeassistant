@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 
 	"github.com/toelke/terraform-provider-homeassistant/internal/client"
 	"github.com/toelke/terraform-provider-homeassistant/internal/dyntype"
@@ -170,9 +171,12 @@ func TestValidateSchedulerSchedule(t *testing.T) {
 		{"points", base(slot("06:00:00", ""), slot("07:00:00", "")), ""},
 		{"sun relative skipped", base(slot("sunrise+00:00:00", "09:00:00"), slot("08:00:00", "10:00:00")), ""},
 		{"overlap", base(slot("06:00:00", "09:00:00"), slot("08:00:00", "10:00:00")), "timeslot 1 (08:00:00-10:00:00) overlaps timeslot 0"},
-		{"end of day overlap", base(slot("22:00:00", "00:00:00"), slot("23:00:00", "")), ""},
+		{"point in end-of-day range", base(slot("22:00:00", "00:00:00"), slot("23:00:00", "")), "lies within"},
 		{"past midnight overlap", base(slot("22:00:00", "02:00:00"), slot("01:00:00", "03:00:00")), "overlaps"},
 		{"same point", base(slot("06:00:00", ""), slot("06:00:00", "")), "both start at 06:00:00"},
+		{"point in range", base(slot("06:00:00", "08:00:00"), slot("06:30:00", "")), "timeslot 1 (06:30:00) lies within timeslot 0 (06:00:00-08:00:00)"},
+		{"point at range start", base(slot("06:30:00", ""), slot("06:30:00", "08:00:00")), "lies within"},
+		{"point at range end", base(slot("06:00:00", "08:00:00"), slot("08:00:00", "")), ""},
 		{"numeric condition", base(withCond(slot("06:00:00", ""), cond("above", "20.5"))), ""},
 		{"text condition", base(withCond(slot("06:00:00", ""), cond("is", "on"))), ""},
 		{"non-numeric below", base(withCond(slot("06:00:00", ""), cond("below", "warm"))), `value must be a number like 20 or -0.5 with match_type "below"`},
@@ -260,9 +264,24 @@ func (f *fakeScheduler) Command(_ context.Context, typ string, params map[string
 		if f.missing {
 			return &client.WSError{Code: "not_found", Message: "Service scheduler.remove not found."}
 		}
-		if params["service"] == "remove" {
+		data, _ := params["service_data"].(map[string]any)
+		switch params["service"] {
+		case "remove":
 			for id := range f.schedules {
 				delete(f.schedules, id)
+			}
+		case "edit", "turn_on", "turn_off":
+			for id, raw := range f.schedules {
+				var item map[string]any
+				_ = json.Unmarshal(raw, &item)
+				if params["service"] == "edit" {
+					b, _ := json.Marshal(data)
+					_ = json.Unmarshal(b, &item) // through JSON, as Home Assistant gets it
+					item["entity_id"] = data["entity_id"]
+				} else {
+					item["enabled"] = params["service"] == "turn_on"
+				}
+				f.schedules[id], _ = json.Marshal(item)
 			}
 		}
 		return nil
@@ -357,5 +376,58 @@ func TestKeepNumberSpelling(t *testing.T) {
 		if got := read[0].Conditions[0].Value.ValueString(); got != tc.want {
 			t.Errorf("read %s %q, prior %s %q: got %q, want %q", tc.readType, tc.read, tc.priorType, tc.prior, got, tc.want)
 		}
+	}
+}
+
+// updateScheduler runs Update from the stored schedule to the plan that change makes of it, and
+// returns the services called.
+func updateScheduler(t *testing.T, change func(*schedulerScheduleModel)) []string {
+	t.Helper()
+	f := &fakeScheduler{schedules: map[string]json.RawMessage{"3d22e6": json.RawMessage(schedulerItem)}}
+	r := &schedulerScheduleResource{}
+	prior := newSchedulerScheduleModel(parseSchedulerItem(t), types.BoolNull())
+	planned := newSchedulerScheduleModel(parseSchedulerItem(t), types.BoolNull())
+	change(&planned)
+	state, plan := stateOf(t, r, prior), stateOf(t, r, planned)
+	resp := resource.UpdateResponse{State: state}
+	newSchedulerScheduleResource(f).Update(t.Context(), resource.UpdateRequest{
+		State: state, Plan: tfsdk.Plan(plan),
+	}, &resp)
+	if resp.Diagnostics.HasError() {
+		t.Fatal(resp.Diagnostics)
+	}
+	return f.calls
+}
+
+func TestSchedulerScheduleUpdate(t *testing.T) {
+	// Every edit runs the active timeslot's actions again, so enabled alone must not edit.
+	got := updateScheduler(t, func(m *schedulerScheduleModel) { m.Enabled = types.BoolValue(true) })
+	if !reflect.DeepEqual(got, []string{"switch.turn_on"}) {
+		t.Errorf("enabled only: calls = %v", got)
+	}
+	// The same days in another order are no change either.
+	got = updateScheduler(t, func(m *schedulerScheduleModel) { m.Weekdays = []string{"tue", "mon"} })
+	if len(got) != 0 {
+		t.Errorf("weekdays reordered: calls = %v", got)
+	}
+	got = updateScheduler(t, func(m *schedulerScheduleModel) { m.Weekdays = []string{"daily"} })
+	if !reflect.DeepEqual(got, []string{"scheduler.edit"}) {
+		t.Errorf("weekdays changed: calls = %v", got)
+	}
+}
+
+func TestSchedulerScheduleModifyPlanWarnsWithoutIntegration(t *testing.T) {
+	r := &schedulerScheduleResource{}
+	m := newSchedulerScheduleModel(parseSchedulerItem(t), types.BoolNull())
+	plan := stateOf(t, r, m)
+	resp := resource.ModifyPlanResponse{Plan: tfsdk.Plan(plan)}
+	req := resource.ModifyPlanRequest{
+		State: tfsdk.State{Schema: plan.Schema, Raw: tftypes.NewValue(plan.Raw.Type(), nil)},
+		Plan:  tfsdk.Plan(plan),
+	}
+	newSchedulerScheduleResource(&fakeScheduler{missing: true}).ModifyPlan(t.Context(), req, &resp)
+	if resp.Diagnostics.HasError() || resp.Diagnostics.WarningsCount() != 1 ||
+		!strings.Contains(resp.Diagnostics.Warnings()[0].Detail(), "homeassistant_integration") {
+		t.Errorf("diagnostics = %v", resp.Diagnostics)
 	}
 }

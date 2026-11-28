@@ -110,7 +110,9 @@ func (r *schedulerScheduleResource) Schema(ctx context.Context, _ resource.Schem
 			"https://github.com/nielsfaber/scheduler-component, version 3.3, e.g. installed through HACS) and " +
 			"must be installed and set up in Home Assistant; without it, this resource fails with an error that " +
 			"says so, and everything else keeps working. Changes update the schedule in place, except a new " +
-			"`name`, which replaces it. Edits made in the card show up as drift.",
+			"`name`, which replaces it. An update runs the actions of the timeslot that is active at that " +
+			"moment again, as an edit in the card does; changing only `enabled` or `timeouts` does not edit " +
+			"the schedule. Edits made in the card show up as drift.",
 		Attributes: map[string]schema.Attribute{
 			"schedule_id": schema.StringAttribute{
 				Description: "ID that the integration assigned to the schedule (6 hex digits). Import with this ID.",
@@ -140,19 +142,18 @@ func (r *schedulerScheduleResource) Schema(ctx context.Context, _ resource.Schem
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
-			"weekdays": schema.ListAttribute{
+			"weekdays": schema.SetAttribute{
 				Description: "Days on which the schedule runs: any of `mon`, `tue`, `wed`, `thu`, `fri`, " +
 					"`sat`, `sun`, or `daily`, `workday`, `weekend`. `workday` follows " +
-					"`binary_sensor.workday_sensor`. Defaults to `[\"daily\"]`.",
+					"`binary_sensor.workday_sensor`. Their order does not matter. Defaults to `[\"daily\"]`.",
 				ElementType: types.StringType,
 				Optional:    true,
 				Computed:    true,
-				Default: listdefault.StaticValue(types.ListValueMust(types.StringType,
+				Default: setdefault.StaticValue(types.SetValueMust(types.StringType,
 					[]attr.Value{types.StringValue("daily")})),
-				Validators: []validator.List{
-					listvalidator.SizeAtLeast(1),
-					listvalidator.UniqueValues(),
-					listvalidator.ValueStringsAre(stringvalidator.OneOf(schedulerWeekdays...)),
+				Validators: []validator.Set{
+					setvalidator.SizeAtLeast(1),
+					setvalidator.ValueStringsAre(stringvalidator.OneOf(schedulerWeekdays...)),
 				},
 			},
 			"start_date": schema.StringAttribute{
@@ -304,13 +305,21 @@ func (r *schedulerScheduleResource) Configure(_ context.Context, req resource.Co
 	}
 }
 
-// ModifyPlan checks, when a schedule is to be created, that the Scheduler integration is set up,
-// so that the plan rather than the apply fails without it.
+// ModifyPlan warns, when a schedule is to be created, if the Scheduler integration is not set up.
+// It does not fail the plan: a `homeassistant_integration` in the same configuration may set the
+// integration up before the schedule is created. Without it, the create fails (ADR-0031).
 func (r *schedulerScheduleResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	if !r.configured || !req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
 		return
 	}
-	if _, err := r.schedulers.List(ctx); err != nil {
+	_, err := r.schedulers.List(ctx)
+	switch {
+	case errors.Is(err, client.ErrSchedulerMissing):
+		resp.Diagnostics.AddWarning("Scheduler integration missing",
+			"The Scheduler integration is not set up in Home Assistant yet, so creating this schedule will "+
+				"fail unless it is set up first, e.g. by a `homeassistant_integration` with "+
+				"`domain = \"scheduler\"` that this schedule depends on.\n\n"+client.SchedulerHint)
+	case err != nil:
 		addSchedulerError(&resp.Diagnostics, "Reading Scheduler schedules", err)
 	}
 }
@@ -362,9 +371,13 @@ func (r *schedulerScheduleResource) Update(ctx context.Context, req resource.Upd
 	if !ok {
 		return
 	}
-	if err := r.schedulers.Edit(ctx, current.EntityID, fields); err != nil {
-		addSchedulerError(&resp.Diagnostics, "Updating Scheduler schedule", err)
-		return
+	// Every edit runs the actions of the active timeslot again, so edit only if something changed,
+	// not e.g. for `enabled` alone.
+	if !sameFields(fields, newSchedulerScheduleModel(current, types.BoolNull())) {
+		if err := r.schedulers.Edit(ctx, current.EntityID, fields); err != nil {
+			addSchedulerError(&resp.Diagnostics, "Updating Scheduler schedule", err)
+			return
+		}
 	}
 	r.finishWrite(ctx, plan, fields, timeout, &resp.Diagnostics, &resp.State)
 }
@@ -566,7 +579,7 @@ func (m schedulerScheduleModel) fields() (map[string]any, error) {
 	tags := slices.Sorted(slices.Values(nonNil(m.Tags)))
 	f := map[string]any{
 		"name":        m.Name.ValueString(),
-		"weekdays":    nonNil(m.Weekdays),
+		"weekdays":    sortedWeekdays(m.Weekdays),
 		"repeat_type": m.RepeatType.ValueString(),
 		"tags":        tags,
 		"start_date":  m.StartDate.ValueStringPointer(),
@@ -678,4 +691,14 @@ func keepNumberSpelling(read, prior []schedulerTimeslotModel) {
 // isNumericMatch reports whether a condition's match_type compares numbers.
 func isNumericMatch(matchType string) bool {
 	return matchType == "below" || matchType == "above"
+}
+
+// sortedWeekdays returns days in the order of schedulerWeekdays, so the fields of a schedule do not
+// depend on the order in which the integration stored them.
+func sortedWeekdays(days []string) []string {
+	out := slices.Clone(nonNil(days))
+	slices.SortFunc(out, func(a, b string) int {
+		return slices.Index(schedulerWeekdays, a) - slices.Index(schedulerWeekdays, b)
+	})
+	return out
 }

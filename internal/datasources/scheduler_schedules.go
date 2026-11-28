@@ -81,7 +81,7 @@ func (d *schedulerSchedulesDataSource) Schema(_ context.Context, _ datasource.Sc
 					"name":        schema.StringAttribute{Description: "Name; null if it has none.", Computed: true},
 					"entity_id":   schema.StringAttribute{Description: "Entity ID of the schedule's switch.", Computed: true},
 					"enabled":     schema.BoolAttribute{Description: "Whether the schedule is enabled.", Computed: true},
-					"weekdays": schema.ListAttribute{
+					"weekdays": schema.SetAttribute{
 						Description: "Days on which it runs, e.g. `[\"mon\", \"fri\"]` or `[\"daily\"]`.",
 						ElementType: types.StringType, Computed: true,
 					},

@@ -26,9 +26,9 @@ func TestAccSchedulerSchedule_IntegrationMissing(t *testing.T) {
 		ProtoV6ProviderFactories: acctest.ProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				// The plan fails, not just the apply.
+				// The plan only warns, since another resource may set the integration up first;
+				// the create fails.
 				Config:      schedulerMissingConfig,
-				PlanOnly:    true,
 				ExpectError: schedulerMissing,
 			},
 			{

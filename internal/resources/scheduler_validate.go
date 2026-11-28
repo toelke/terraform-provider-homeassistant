@@ -232,6 +232,18 @@ func (a slotTimes) overlap(b slotTimes) string {
 		}
 		return ""
 	}
+	// A single time within a range, or at its start: both would run their actions then.
+	for _, pr := range [][2]slotTimes{{a, b}, {b, a}} {
+		pt, rg := pr[0], pr[1]
+		if pt.point < 0 || rg.point >= 0 {
+			continue
+		}
+		for _, r := range rg.ranges {
+			if r[0] <= pt.point && pt.point < r[1] {
+				return fmt.Sprintf("timeslot %d (%s) lies within timeslot %d (%s).", pt.index, pt.label, rg.index, rg.label)
+			}
+		}
+	}
 	for _, x := range a.ranges {
 		for _, y := range b.ranges {
 			if x[0] < y[1] && y[0] < x[1] {

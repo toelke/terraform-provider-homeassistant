@@ -3,12 +3,12 @@
 page_title: "homeassistant_scheduler_schedule Resource - homeassistant"
 subcategory: ""
 description: |-
-  A schedule of the Scheduler integration (scheduler), the backend of the scheduler card: on the chosen days, it runs actions at fixed times or relative to the sun, e.g. a weekly heating plan. The Scheduler integration is a custom integration (https://github.com/nielsfaber/scheduler-component, version 3.3, e.g. installed through HACS) and must be installed and set up in Home Assistant; without it, this resource fails with an error that says so, and everything else keeps working. Changes update the schedule in place, except a new name, which replaces it. Edits made in the card show up as drift.
+  A schedule of the Scheduler integration (scheduler), the backend of the scheduler card: on the chosen days, it runs actions at fixed times or relative to the sun, e.g. a weekly heating plan. The Scheduler integration is a custom integration (https://github.com/nielsfaber/scheduler-component, version 3.3, e.g. installed through HACS) and must be installed and set up in Home Assistant; without it, this resource fails with an error that says so, and everything else keeps working. Changes update the schedule in place, except a new name, which replaces it. An update runs the actions of the timeslot that is active at that moment again, as an edit in the card does; changing only enabled or timeouts does not edit the schedule. Edits made in the card show up as drift.
 ---
 
 # homeassistant_scheduler_schedule (Resource)
 
-A schedule of the Scheduler integration (`scheduler`), the backend of the scheduler card: on the chosen days, it runs actions at fixed times or relative to the sun, e.g. a weekly heating plan. The Scheduler integration is a custom integration (https://github.com/nielsfaber/scheduler-component, version 3.3, e.g. installed through HACS) and must be installed and set up in Home Assistant; without it, this resource fails with an error that says so, and everything else keeps working. Changes update the schedule in place, except a new `name`, which replaces it. Edits made in the card show up as drift.
+A schedule of the Scheduler integration (`scheduler`), the backend of the scheduler card: on the chosen days, it runs actions at fixed times or relative to the sun, e.g. a weekly heating plan. The Scheduler integration is a custom integration (https://github.com/nielsfaber/scheduler-component, version 3.3, e.g. installed through HACS) and must be installed and set up in Home Assistant; without it, this resource fails with an error that says so, and everything else keeps working. Changes update the schedule in place, except a new `name`, which replaces it. An update runs the actions of the timeslot that is active at that moment again, as an edit in the card does; changing only `enabled` or `timeouts` does not edit the schedule. Edits made in the card show up as drift.
 
 ## Example Usage
 
@@ -65,7 +65,7 @@ resource "homeassistant_scheduler_schedule" "porch_light" {
 - `start_date` (String) First day on which the schedule runs, as `YYYY-MM-DD`. Unset, it starts right away.
 - `tags` (Set of String) Tags of the schedule, which the card filters by. Defaults to none.
 - `timeouts` (Attributes) (see [below for nested schema](#nestedatt--timeouts))
-- `weekdays` (List of String) Days on which the schedule runs: any of `mon`, `tue`, `wed`, `thu`, `fri`, `sat`, `sun`, or `daily`, `workday`, `weekend`. `workday` follows `binary_sensor.workday_sensor`. Defaults to `["daily"]`.
+- `weekdays` (Set of String) Days on which the schedule runs: any of `mon`, `tue`, `wed`, `thu`, `fri`, `sat`, `sun`, or `daily`, `workday`, `weekend`. `workday` follows `binary_sensor.workday_sensor`. Their order does not matter. Defaults to `["daily"]`.
 
 ### Read-Only
 

@@ -123,7 +123,7 @@ func (s Schedulers) Add(ctx context.Context, fields map[string]any) (string, err
 		return "", err
 	}
 	if err := s.call(ctx, "add", fields); err != nil {
-		return "", err
+		return s.reconcileFailedAdd(ctx, fields, before, err)
 	}
 	var after map[string]bool
 	for attempt := range schedulerListAttempts {
@@ -138,24 +138,58 @@ func (s Schedulers) Add(ctx context.Context, fields map[string]any) (string, err
 		}
 	}
 	if err != nil {
-		return "", addedUnidentified(fields, fmt.Errorf("listing the schedules failed: %w", err))
+		return "", addedUnidentified(fields, true, fmt.Errorf("listing the schedules failed: %w", err))
 	}
+	added := newIDs(before, after)
+	switch len(added) {
+	case 1:
+		return added[0], nil
+	case 0:
+		return "", addedUnidentified(fields, true, errors.New("no new schedule appeared in the list"))
+	default:
+		return "", addedUnidentified(fields, true, fmt.Errorf("several schedules appeared at once (%s)",
+			strings.Join(added, ", ")))
+	}
+}
+
+// reconcileFailedAdd handles an error of the `scheduler.add` call itself. Home Assistant's own
+// rejection, a missing integration, or a connection that never came up mean nothing was created.
+// Otherwise, e.g. after a timeout or a lost connection, the schedule may exist: it lists once more,
+// with a context that the caller's cancel does not end, and returns the one new ID if there is
+// one.
+func (s Schedulers) reconcileFailedAdd(ctx context.Context, fields map[string]any, before map[string]bool, err error) (string, error) {
+	var wsErr *WSError
+	if errors.As(err, &wsErr) || errors.Is(err, ErrSchedulerMissing) || errors.Is(err, ErrUnreachable) ||
+		errors.Is(err, ErrUnauthorized) {
+		return "", err
+	}
+	lctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), schedulerReconcileTimeout)
+	defer cancel()
+	after, listErr := s.ids(lctx)
+	if listErr == nil {
+		switch added := newIDs(before, after); len(added) {
+		case 0:
+			return "", err // not created
+		case 1:
+			return added[0], nil
+		}
+	}
+	return "", addedUnidentified(fields, false, err)
+}
+
+// schedulerReconcileTimeout bounds the list after a failed add.
+var schedulerReconcileTimeout = 30 * time.Second
+
+// newIDs returns the IDs in after that are not in before, sorted.
+func newIDs(before, after map[string]bool) []string {
 	var added []string
 	for id := range after {
 		if !before[id] {
 			added = append(added, id)
 		}
 	}
-	switch len(added) {
-	case 1:
-		return added[0], nil
-	case 0:
-		return "", addedUnidentified(fields, errors.New("no new schedule appeared in the list"))
-	default:
-		slices.Sort(added)
-		return "", addedUnidentified(fields, fmt.Errorf("several schedules appeared at once (%s)",
-			strings.Join(added, ", ")))
-	}
+	slices.Sort(added)
+	return added
 }
 
 // Retries of the list after `scheduler.add`. Tests shorten the delay.
@@ -164,13 +198,17 @@ var (
 	schedulerListRetryDelay = time.Second
 )
 
-// addedUnidentified is the error of an add that succeeded without the provider learning the new
-// schedule's ID.
-func addedUnidentified(fields map[string]any, cause error) error {
-	return fmt.Errorf("scheduler.add created the schedule %q, but the provider could not tell its "+
+// addedUnidentified is the error of an add that created, or if not certain may have created, a
+// schedule without the provider learning its ID.
+func addedUnidentified(fields map[string]any, certain bool, cause error) error {
+	verb := "created"
+	if !certain {
+		verb = "may have created"
+	}
+	return fmt.Errorf("scheduler.add %s the schedule %q, but the provider could not tell its "+
 		"schedule_id: %w. Look it up, e.g. with the data source homeassistant_scheduler_schedules, and "+
 		"import it with `tofu import <resource address> <schedule_id>`, or delete it in Home Assistant, "+
-		"before applying again; otherwise the next apply creates it a second time", fields["name"], cause)
+		"before applying again; otherwise the next apply creates it a second time", verb, fields["name"], cause)
 }
 
 // Edit sets the fields of the schedule whose switch is entityID, as `scheduler.edit` takes them.

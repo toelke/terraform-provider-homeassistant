@@ -72,7 +72,10 @@ func (c CustomComponent) files(ctx context.Context) ([]testcontainers.ContainerF
 	}
 	sum := sha256.Sum256(archive)
 	if got := hex.EncodeToString(sum[:]); got != c.SHA256 {
-		return nil, fmt.Errorf("%s has SHA-256 %s, want %s", c.URL, got, c.SHA256)
+		return nil, fmt.Errorf("%s has SHA-256 %s, want %s. GitHub generates tag archives on the fly and "+
+			"does not promise stable bytes, so it may have been regenerated: check that the tag still "+
+			"points at the same commit, then pin the new SHA-256 (`curl -sL <url> | sha256sum`) in the "+
+			"CustomComponent for %s in internal/acctest/customcomponent.go", c.URL, got, c.SHA256, c.Domain)
 	}
 
 	gz, err := gzip.NewReader(bytes.NewReader(archive))

@@ -36,8 +36,12 @@ The options put to the maintainer:
 3. Versions and tests: support 3.3, and in the tests (a) vendor a copy, (b) download the pinned
    release, or (c) do without acceptance tests.
 4. `single`: (a) reject it at plan time; (b) allow it and document that it is created again.
+5. A missing integration when planning to create a schedule: (a) a warning at plan time and the
+   error at apply, so that a `homeassistant_integration` with `domain = "scheduler"` and the
+   schedules that depend on it apply in one run; (b) an error at plan time, documented as needing
+   two applies or `-target`; (c) no check at plan time.
 
-The maintainer chose 1a, 2a, 3b and 4a.
+The maintainer chose 1a, 2a, 3b, 4a and 5a.
 
 ## Decision
 
@@ -46,8 +50,9 @@ The maintainer chose 1a, 2a, 3b and 4a.
   `scheduler.add`, `scheduler.edit` and `scheduler.remove`, and read through its WebSocket
   commands `scheduler` and `scheduler/item`.
 - The provider and every other resource work without the integration. Nothing is checked at
-  configure time. Planning to create a schedule, reading or importing one, and reading the data
-  source fail with an error that names the integration and how to install it.
+  configure time. Planning to create a schedule warns that the integration is missing; creating,
+  reading or importing one, and reading the data source, fail with an error that names the
+  integration and how to install it.
 - `enabled` is optional. Unset, the provider neither writes nor reads it, so switching the
   schedule in Home Assistant is no drift. Set, it is enforced through `switch.turn_on` and
   `switch.turn_off`, and a different value read back is drift. This is the one exception to
@@ -56,7 +61,10 @@ The maintainer chose 1a, 2a, 3b and 4a.
   of `homeassistant_schedule`. The provider maps it to the integration's names.
 - `repeat_type` accepts `repeat` and `pause`. `single` is rejected at plan time.
 - Every change but `name` updates the schedule in place and keeps its `schedule_id`. A new `name`
-  replaces it, because renaming in place loses the switch.
+  replaces it, because renaming in place loses the switch. Every edit runs the actions of the
+  timeslot that is active at that moment again, so the provider edits only when a field of the
+  schedule changed, not for `enabled` or `timeouts` alone.
+- `weekdays` is a set: the integration keeps the order it was given, which means nothing.
 - The provider finds a new schedule's ID by comparing the list before and after `scheduler.add`,
   and serialises its own adds for that.
 - Acceptance tests that need the integration live in their own package, whose container gets the

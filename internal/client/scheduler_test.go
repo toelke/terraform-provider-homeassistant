@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -136,5 +137,56 @@ func TestSchedulersAddRetriesList(t *testing.T) {
 	if !errors.Is(err, ErrConnectionLost) || !strings.Contains(err.Error(), `created the schedule "Office"`) ||
 		!strings.Contains(err.Error(), "tofu import") {
 		t.Errorf("Add: %v", err)
+	}
+}
+
+func TestSchedulersAddCallFails(t *testing.T) {
+	failing := func(created bool, callErr error, listFails bool) fakeWS {
+		ws, _ := fakeSchedulerWS([]string{"aaaaaa"}, nil, nil)
+		list, lists := ws["scheduler"], 0
+		ids := []string{"aaaaaa"}
+		ws["scheduler"] = func(p map[string]any) (any, error) {
+			if lists++; lists > 1 && listFails {
+				return nil, ErrConnectionLost
+			}
+			if _, err := list(p); err != nil {
+				return nil, err
+			}
+			all := make([]map[string]any, len(ids))
+			for i, id := range ids {
+				all[i] = map[string]any{"schedule_id": id}
+			}
+			return all, nil
+		}
+		ws["call_service"] = func(map[string]any) (any, error) {
+			if created {
+				ids = append(ids, "bbbbbb")
+			}
+			return nil, callErr
+		}
+		return ws
+	}
+	add := func(ws fakeWS) (string, error) {
+		return NewSchedulers(ws).Add(t.Context(), map[string]any{"name": "Office"})
+	}
+
+	// Lost while in flight, but created: the new ID is found.
+	if id, err := add(failing(true, ErrConnectionLost, false)); err != nil || id != "bbbbbb" {
+		t.Errorf("created: %q, %v", id, err)
+	}
+	// Lost while in flight, not created: the original error, without a hint.
+	if _, err := add(failing(false, ErrConnectionLost, false)); !errors.Is(err, ErrConnectionLost) ||
+		strings.Contains(err.Error(), "tofu import") {
+		t.Errorf("not created: %v", err)
+	}
+	// Rejected by Home Assistant: nothing was created, no second list.
+	if _, err := add(failing(false, &WSError{Code: "invalid_format", Message: "bad"}, true)); err == nil ||
+		strings.Contains(err.Error(), "tofu import") {
+		t.Errorf("rejected: %v", err)
+	}
+	// Timed out, and the list fails too: it may exist.
+	_, err := add(failing(true, context.DeadlineExceeded, true))
+	if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), `may have created the schedule "Office"`) {
+		t.Errorf("unknown: %v", err)
 	}
 }
