@@ -77,8 +77,9 @@ empty), `condition_type` (`and`/`or`, unset means `or` to the integration) and
 `data` (a JSON object as text, default `{}`, compared semantically). A condition has
 `entity_id`, `attribute`, `match_type` (`is`, `not`, `below`, `above`) and `value`, a string that
 must be a number in JSON syntax (`20`, `-0.5`, not `.5` or `NaN`) with `below` and `above` and is
-then sent as a number. The integration stores it as a number, so on read a value that is the same
-number keeps its spelling (`20.50` stays `20.50`).
+then sent as a number. The integration stores it as a number, so on read a `below` or `above`
+value that is the same number keeps its spelling (`20.50` stays `20.50`). `is` and `not` values
+are strings, compared as strings; any change to them is drift.
 
 Plan-time validation:
 

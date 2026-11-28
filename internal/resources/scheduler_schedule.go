@@ -625,7 +625,7 @@ func (m schedulerScheduleModel) fields() (map[string]any, error) {
 // conditionValue is the value of a condition as the integration takes it: a number for `below`
 // and `above`, which compare numbers, and the string otherwise.
 func conditionValue(matchType, value string) any {
-	if matchType == "below" || matchType == "above" {
+	if isNumericMatch(matchType) {
 		if jsonNumber.MatchString(value) {
 			return json.Number(value)
 		}
@@ -655,12 +655,17 @@ func nonNil(s []string) []string {
 	return s
 }
 
-// keepNumberSpelling keeps the prior value of each condition whose number reads back spelled
-// differently, e.g. `20.50` as `20.5`: the integration stores numbers as numbers.
+// keepNumberSpelling keeps the prior value of each `below` or `above` condition whose number
+// reads back spelled differently, e.g. `20.50` as `20.5`: those values are sent as numbers, and
+// the integration stores them as numbers. `is` and `not` values are strings and compared as
+// strings, so they are left alone: a changed string is drift even if it is the same number.
 func keepNumberSpelling(read, prior []schedulerTimeslotModel) {
 	for i := range min(len(read), len(prior)) {
 		for j := range min(len(read[i].Conditions), len(prior[i].Conditions)) {
 			r, p := &read[i].Conditions[j], prior[i].Conditions[j]
+			if !isNumericMatch(r.MatchType.ValueString()) || !isNumericMatch(p.MatchType.ValueString()) {
+				continue
+			}
 			a, errA := strconv.ParseFloat(r.Value.ValueString(), 64)
 			b, errB := strconv.ParseFloat(p.Value.ValueString(), 64)
 			if errA == nil && errB == nil && a == b && jsonNumber.MatchString(p.Value.ValueString()) {
@@ -668,4 +673,9 @@ func keepNumberSpelling(read, prior []schedulerTimeslotModel) {
 			}
 		}
 	}
+}
+
+// isNumericMatch reports whether a condition's match_type compares numbers.
+func isNumericMatch(matchType string) bool {
+	return matchType == "below" || matchType == "above"
 }

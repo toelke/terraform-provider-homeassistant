@@ -333,24 +333,29 @@ func validateString(t *testing.T, v validator.String, s string) diag.Diagnostics
 }
 
 func TestKeepNumberSpelling(t *testing.T) {
-	withValue := func(v string) []schedulerTimeslotModel {
+	withValue := func(matchType, v string) []schedulerTimeslotModel {
 		s := slot("06:00:00", "")
 		s.Conditions = []schedulerConditionModel{{
 			EntityID: types.StringValue("sensor.t"), Attribute: types.StringNull(),
-			MatchType: types.StringValue("above"), Value: types.StringValue(v),
+			MatchType: types.StringValue(matchType), Value: types.StringValue(v),
 		}}
 		return []schedulerTimeslotModel{s}
 	}
-	for _, tc := range []struct{ read, prior, want string }{
-		{"20.5", "20.50", "20.50"}, // same number: keep how it was written
-		{"21", "20.50", "21"},      // changed: drift
-		{"on", "on", "on"},
-		{"1000.0", "1e3", "1e3"},
+	for _, tc := range []struct{ readType, read, priorType, prior, want string }{
+		{"above", "20.5", "above", "20.50", "20.50"}, // same number: keep how it was written
+		{"below", "1000.0", "below", "1e3", "1e3"},
+		{"above", "21", "above", "20.50", "21"}, // another number: drift
+		// is and not compare strings, so another spelling is drift.
+		{"is", "20.5", "is", "20.50", "20.5"},
+		{"not", "20.5", "not", "20.50", "20.5"},
+		// The match type changed too: drift either way.
+		{"is", "20.5", "above", "20.50", "20.5"},
+		{"above", "20.5", "is", "20.50", "20.5"},
 	} {
-		read := withValue(tc.read)
-		keepNumberSpelling(read, withValue(tc.prior))
+		read := withValue(tc.readType, tc.read)
+		keepNumberSpelling(read, withValue(tc.priorType, tc.prior))
 		if got := read[0].Conditions[0].Value.ValueString(); got != tc.want {
-			t.Errorf("read %q, prior %q: got %q, want %q", tc.read, tc.prior, got, tc.want)
+			t.Errorf("read %s %q, prior %s %q: got %q, want %q", tc.readType, tc.read, tc.priorType, tc.prior, got, tc.want)
 		}
 	}
 }
