@@ -119,6 +119,7 @@ func (p *HomeAssistantProvider) Resources(_ context.Context) []func() resource.R
 		resources.NewMQTT,
 		resources.NewScene,
 		resources.NewSchedule,
+		resources.NewSchedulerSchedule,
 		resources.NewScript,
 		resources.NewTimer,
 	}
@@ -130,6 +131,7 @@ func (p *HomeAssistantProvider) DataSources(_ context.Context) []func() datasour
 		datasources.NewEntity,
 		datasources.NewEntities,
 		datasources.NewIntegration,
+		datasources.NewSchedulerSchedules,
 		datasources.NewTemplate,
 		datasources.NewArea,
 		datasources.NewAreas,

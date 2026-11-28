@@ -85,7 +85,16 @@ config `id`, and its entity ID is derived from its alias — not from its id.
 
 **Runtime state** — Anything HA changes while running and that users toggle from the UI: entity
 state, and whether an automation is enabled. The provider does not manage runtime state. See
-ADR-0012.
+ADR-0012. The one exception is a Scheduler schedule's `enabled`, which the integration stores with
+the schedule (ADR-0031).
+
+**Custom integration** — An integration that is not part of HA itself, installed into
+`custom_components`, usually through HACS. The provider supports one: the Scheduler integration.
+
+**Scheduler integration** — The custom integration `scheduler` (nielsfaber/scheduler-component),
+the backend of the scheduler card. Its **schedules** run actions on chosen weekdays, at fixed times
+or relative to the sun, in **timeslots**. Each has a 6-hex-digit `schedule_id` and a switch
+`switch.schedule_<name>`. Not to be confused with the `schedule` helper (ADR-0031).
 
 **Lovelace** — HA's dashboard system. Its WebSocket commands are prefixed `lovelace/`.
 

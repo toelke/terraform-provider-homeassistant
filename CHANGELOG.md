@@ -6,6 +6,17 @@ Breaking changes are marked **Breaking** (ADR-0018, ADR-0019).
 
 ## Unreleased
 
+- New resource `homeassistant_scheduler_schedule` and data source
+  `homeassistant_scheduler_schedules` for the schedules of the Scheduler integration (the backend
+  of the scheduler card, a custom integration from HACS, version 3.3), e.g. weekly heating plans
+  (ADR-0031). Timeslots run actions at fixed times or relative to the sun, with optional
+  conditions. Times, weekdays, dates and overlapping timeslots are checked at plan time. Changes
+  update the schedule in place and keep its `schedule_id`, except a new `name`, which replaces it.
+  Edits made in the card show as drift. `enabled` is optional: unset, switching the schedule in
+  Home Assistant is no drift. Import by `schedule_id`. Without the integration, the provider and
+  all other resources keep working, and these fail with an error that says how to install it
+  (#118).
+
 ## 1.1.0
 
 Supports Home Assistant 2026.6 to 2026.11. No breaking changes: state from 1.0.0 upgrades without
