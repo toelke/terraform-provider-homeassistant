@@ -22,8 +22,10 @@ scenes, helpers, dashboards, and integrations.
   (`homeassistant_integration`), and its subentries by answering their subentry flows
   (`homeassistant_integration_subentry`), plus typed resources for ESPHome and MQTT
   (`homeassistant_esphome`, `homeassistant_mqtt`).
-- **Data sources** to look things up: entities, devices, areas, integrations, the instance config,
-  and rendered templates.
+- **Scheduler schedules** of the Scheduler custom integration (from HACS), the backend of the
+  scheduler card, e.g. weekly heating plans (`homeassistant_scheduler_schedule`).
+- **Data sources** to look things up: entities, devices, areas, integrations, Scheduler
+  schedules, the instance config, and rendered templates.
 - **Provider functions** that build dashboard cards and sections, and automation triggers,
   conditions and actions.
 - Every resource supports `tofu import`.
@@ -115,6 +117,10 @@ TF_ACC=1 TF_ACC_TERRAFORM_PATH="$(which tofu)" \
 ```
 
 `HOMEASSISTANT_IMAGE_TAG` is optional and defaults to the newest version in the CI matrix.
+
+The tests in [`internal/scheduleracc`](internal/scheduleracc/) need the Scheduler custom
+integration. Their container gets a pinned release of it, which `acctest.Install` downloads from
+GitHub and checks against its SHA-256, so they need network access to GitHub.
 
 Each resource except `homeassistant_esphome` (which has no acceptance test, because it needs a
 reachable ESPHome device) also has an upgrade test, `TestAccXxx_upgrade`, built with

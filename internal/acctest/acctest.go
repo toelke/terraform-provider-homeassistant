@@ -123,11 +123,17 @@ func start(ctx context.Context) (*Instance, error) {
 		tag = DefaultImageTag
 	}
 
+	files, err := customComponentFiles(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	c, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
 			Image:        image + ":" + tag,
 			ExposedPorts: []string{"8123/tcp"},
 			Env:          map[string]string{"TZ": "UTC"},
+			Files:        files,
 			WaitingFor: wait.ForHTTP("/api/onboarding").
 				WithPort("8123/tcp").
 				WithStartupTimeout(startupTimeout),
