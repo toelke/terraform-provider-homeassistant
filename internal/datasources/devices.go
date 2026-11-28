@@ -244,23 +244,12 @@ type deviceFilter struct {
 
 // apply returns the devices that pass every filter, sorted by ID.
 func (f deviceFilter) apply(devices []client.Device) []client.Device {
-	var out []client.Device
-	for _, d := range devices {
-		if f.matches(d) {
-			out = append(out, d)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
-	return out
+	return filterSorted(devices, f.matches, func(d client.Device) string { return d.ID })
 }
 
 func (f deviceFilter) matches(d client.Device) bool {
-	for _, c := range []struct{ want, got *string }{
-		{f.manufacturer, d.Manufacturer}, {f.model, d.Model}, {f.areaID, d.AreaID},
-	} {
-		if c.want != nil && (c.got == nil || *c.got != *c.want) {
-			return false
-		}
+	if !ptrMatches(f.manufacturer, d.Manufacturer) || !ptrMatches(f.model, d.Model) || !ptrMatches(f.areaID, d.AreaID) {
+		return false
 	}
 	if f.label != nil && !slices.Contains(d.Labels, *f.label) {
 		return false
