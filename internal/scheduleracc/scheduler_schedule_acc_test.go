@@ -285,3 +285,11 @@ data "homeassistant_scheduler_schedules" "all" {
 		}},
 	})
 }
+
+func TestAccSchedulerSchedule_upgrade(t *testing.T) {
+	t.Skip("homeassistant_scheduler_schedule is not in a release yet: no released provider can apply it")
+	preCheck(t)
+	acctest.UpgradeTest(t, scheduleConfig("Acc Upgrade", `["mon", "fri"]`, "21", `  tags = ["upgrade"]`),
+		resource.TestCheckResourceAttr(scheduleAddr, "entity_id", "switch.schedule_acc_upgrade"),
+	)
+}
